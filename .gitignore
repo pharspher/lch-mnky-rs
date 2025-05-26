@@ -1,0 +1,9 @@
+.vscode/
+.embuild/
+target/
+Cargo.lock
+
+**/target/
+**/.vscode/
+**/.idea
+**/Cargo.lock%   
