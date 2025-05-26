@@ -33,7 +33,14 @@ impl Lexer {
         self.skip_whitespaces();
 
         let token = match self.ch {
-            '=' => Token::Assign,
+            '=' => {
+                if self.peek_char() == '=' {
+                    self.read_char();
+                    Token::EQ
+                } else {
+                    Token::Assign
+                }
+            }
             '+' => Token::Plus,
             ';' => Token::SemiColon,
             ',' => Token::Comma,
@@ -41,6 +48,19 @@ impl Lexer {
             ')' => Token::RightParen,
             '{' => Token::LeftBrace,
             '}' => Token::RightBrace,
+            '!' => {
+                if self.peek_char() == '=' {
+                    self.read_char();
+                    Token::NotEQ
+                } else {
+                    Token::Bang
+                }
+            }
+            '-' => Token::Minus,
+            '/' => Token::Slash,
+            '*' => Token::Asterisk,
+            '<' => Token::LT,
+            '>' => Token::GT,
             '\0' => Token::EOF,
 
             _ if self.is_letter(self.ch) => {
@@ -119,6 +139,17 @@ mod tests {
             };
 
             let result = add(five, ten);
+            !-/*5;
+            5 < 10 > 5;
+
+            if (5 < 10) {
+                return true;
+            } else {
+                return false;
+            }
+
+            10 == 10;
+            10 != 9;
         "#,
         );
 
@@ -166,5 +197,49 @@ mod tests {
         assert_eq!(lexer.next_token(), Token::Identifier(String::from("ten")));
         assert_eq!(lexer.next_token(), Token::RightParen);
         assert_eq!(lexer.next_token(), Token::SemiColon);
+
+        assert_eq!(lexer.next_token(), Token::Bang);
+        assert_eq!(lexer.next_token(), Token::Minus);
+        assert_eq!(lexer.next_token(), Token::Slash);
+        assert_eq!(lexer.next_token(), Token::Asterisk);
+        assert_eq!(lexer.next_token(), Token::Int(String::from("5")));
+        assert_eq!(lexer.next_token(), Token::SemiColon);
+
+        assert_eq!(lexer.next_token(), Token::Int(String::from("5")));
+        assert_eq!(lexer.next_token(), Token::LT);
+        assert_eq!(lexer.next_token(), Token::Int(String::from("10")));
+        assert_eq!(lexer.next_token(), Token::GT);
+        assert_eq!(lexer.next_token(), Token::Int(String::from("5")));
+        assert_eq!(lexer.next_token(), Token::SemiColon);
+
+        assert_eq!(lexer.next_token(), Token::If);
+        assert_eq!(lexer.next_token(), Token::LeftParen);
+        assert_eq!(lexer.next_token(), Token::Int(String::from("5")));
+        assert_eq!(lexer.next_token(), Token::LT);
+        assert_eq!(lexer.next_token(), Token::Int(String::from("10")));
+        assert_eq!(lexer.next_token(), Token::RightParen);
+        assert_eq!(lexer.next_token(), Token::LeftBrace);
+        assert_eq!(lexer.next_token(), Token::Return);
+        assert_eq!(lexer.next_token(), Token::True);
+        assert_eq!(lexer.next_token(), Token::SemiColon);
+        assert_eq!(lexer.next_token(), Token::RightBrace);
+        assert_eq!(lexer.next_token(), Token::Else);
+        assert_eq!(lexer.next_token(), Token::LeftBrace);
+        assert_eq!(lexer.next_token(), Token::Return);
+        assert_eq!(lexer.next_token(), Token::False);
+        assert_eq!(lexer.next_token(), Token::SemiColon);
+        assert_eq!(lexer.next_token(), Token::RightBrace);
+
+        assert_eq!(lexer.next_token(), Token::Int(String::from("10")));
+        assert_eq!(lexer.next_token(), Token::EQ);
+        assert_eq!(lexer.next_token(), Token::Int(String::from("10")));
+        assert_eq!(lexer.next_token(), Token::SemiColon);
+
+        assert_eq!(lexer.next_token(), Token::Int(String::from("10")));
+        assert_eq!(lexer.next_token(), Token::NotEQ);
+        assert_eq!(lexer.next_token(), Token::Int(String::from("9")));
+        assert_eq!(lexer.next_token(), Token::SemiColon);
+
+        assert_eq!(lexer.next_token(), Token::EOF);
     }
 }
