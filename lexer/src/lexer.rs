@@ -23,7 +23,7 @@ impl Lexer {
         if self.read_position >= self.input.len() {
             self.ch = '\0';
         } else {
-            self.ch = self.input[self.read_position..].chars().next().unwrap();
+            self.ch = self.peek_char();
             self.position = self.read_position;
             self.read_position += 1;
         }
@@ -62,7 +62,7 @@ impl Lexer {
     }
 
     fn skip_whitespaces(&mut self) {
-        while self.ch == ' ' || self.ch == '\t' || self.ch == '\n' || self.ch == '\r' {
+        while matches!(self.ch, ' ' | '\t' | '\n' | '\r') {
             self.read_char();
         }
     }
@@ -74,33 +74,32 @@ impl Lexer {
     fn read_literal(&mut self) -> &str {
         let start = self.position;
 
-        let mut next_char = self.peek_char();
-        while self.is_letter(next_char) {
+        loop {
+            let next_char = self.peek_char();
+            if !self.is_letter(next_char) {
+                return &self.input[start..self.read_position];
+            }
             self.read_char();
-            next_char = self.peek_char();
         }
-
-        &self.input[start..self.read_position]
     }
 
     fn read_number(&mut self) -> &str {
         let start = self.position;
 
-        let mut next_char = self.peek_char();
-        while next_char.is_numeric() {
+        loop {
+            let next_char = self.peek_char();
+            if !next_char.is_numeric() {
+                return &self.input[start..self.read_position];
+            }
             self.read_char();
-            next_char = self.peek_char();
         }
-
-        &self.input[start..self.read_position]
     }
 
     fn peek_char(&self) -> char {
-        if self.read_position >= self.input.len() {
-            '\0'
-        } else {
-            self.input[self.read_position..].chars().next().unwrap()
-        }
+        self.input[self.read_position..]
+            .chars()
+            .next()
+            .unwrap_or('\0')
     }
 }
 
