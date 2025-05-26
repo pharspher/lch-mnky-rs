@@ -8,9 +8,23 @@ pub enum Token {
 
     Let,
     Fn,
+    If,
+    Else,
+    Return,
+    True,
+    False,
 
     Assign,
     Plus,
+    Bang,
+    Minus,
+    Slash,
+    Asterisk,
+
+    LT,
+    GT,
+    EQ,
+    NotEQ,
 
     SemiColon,
     Comma,
@@ -26,6 +40,11 @@ impl Token {
         match input {
             "let" => Some(Token::Let),
             "fn" => Some(Token::Fn),
+            "if" => Some(Token::If),
+            "else" => Some(Token::Else),
+            "return" => Some(Token::Return),
+            "true" => Some(Token::True),
+            "false" => Some(Token::False),
             _ => None,
         }
     }
