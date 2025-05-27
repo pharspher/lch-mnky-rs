@@ -64,7 +64,7 @@ impl Lexer {
             '\0' => Token::EOF,
 
             _ if self.is_letter(self.ch) => {
-                let identifier = self.read_literal();
+                let identifier = self.read_identifier();
                 Token::match_keyword(identifier)
                     .unwrap_or(Token::Identifier(identifier.to_string()))
             }
@@ -91,7 +91,7 @@ impl Lexer {
         ch.is_alphabetic() || ch == '_'
     }
 
-    fn read_literal(&mut self) -> &str {
+    fn read_identifier(&mut self) -> &str {
         let start = self.position;
 
         loop {
