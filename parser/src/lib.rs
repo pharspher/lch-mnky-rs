@@ -140,7 +140,7 @@ mod test {
     use crate::{Expression, Identifier, LetStatement, Parser};
 
     #[test]
-    fn test() {
+    fn test_parse_program() {
         simple_logger::SimpleLogger::new().init().unwrap();
 
         let input = r"
