@@ -45,6 +45,12 @@ impl Parser {
                         program.statements.push(stmt);
                     }
                 }
+                Token::Return => {
+                    if let Some(stmt) = self.parse_return_statement() {
+                        info!("[Program] Resolve stmt {:?}", stmt);
+                        program.statements.push(stmt);
+                    }
+                }
                 Token::EOF => break,
                 _ => {
                     self.errors
@@ -94,6 +100,21 @@ impl Parser {
             value: Expression {},
         }))
     }
+
+    pub fn parse_return_statement(&mut self) -> Option<Box<dyn Statement>> {
+        let return_token = self.curr_token.take().unwrap();
+
+        self.next_token();
+        while self.curr_token != Some(Token::SemiColon) && self.curr_token != Some(Token::EOF) {
+            info!("[Let] Skip expression");
+            self.next_token();
+        }
+
+        Some(Box::new(ReturnStatement {
+            token: return_token,
+            value: Expression {}
+        }))
+    }
 }
 
 pub trait Statement: fmt::Debug + any::Any + Downcast {}
@@ -111,6 +132,14 @@ impl Statement for LetStatement {}
 pub struct Identifier {
     token: Token,
 }
+
+#[derive(Debug, PartialEq)]
+pub struct ReturnStatement {
+    token: Token,
+    value: Expression,
+}
+
+impl Statement for ReturnStatement {}
 
 #[derive(Debug, PartialEq)]
 pub struct Expression {}
