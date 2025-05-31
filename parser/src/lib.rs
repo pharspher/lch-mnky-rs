@@ -46,7 +46,10 @@ impl Parser {
                     }
                 }
                 Token::EOF => break,
-                _ => todo!(),
+                _ => {
+                    self.errors
+                        .push("Unable to resolve statement".to_string());
+                }
             }
 
             info!("============================");
