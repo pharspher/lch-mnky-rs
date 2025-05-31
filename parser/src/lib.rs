@@ -48,7 +48,7 @@ impl Parser {
                 Token::EOF => break,
                 _ => {
                     self.errors
-                        .push("Unable to resolve statement".to_string());
+                        .push(format!("Unable to resolve statement: {:?}", token));
                 }
             }
 
@@ -69,6 +69,7 @@ impl Parser {
                 token: token.unwrap(),
             }
         } else {
+            self.errors.push(format!("Expected identifier after let, found: {:?}", token));
             return None;
         };
 
@@ -134,6 +135,8 @@ impl Default for Program {
 
 #[cfg(test)]
 mod test {
+    use log::info;
+
     use lexer::lexer::Lexer;
     use lexer::token::Token;
 
@@ -162,6 +165,7 @@ mod test {
         let lexer = Lexer::new(input.to_string());
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
+        info!("Errors: {:?}", parser.errors);
 
         assert_eq!(program.statements.len(), 3);
 
