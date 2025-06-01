@@ -1,7 +1,7 @@
 use std::io::Write;
 
-use lexer::lexer;
 use ::lexer::token::Token;
+use lexer::lexer;
 
 fn main() {
     let prompt = ">> ";

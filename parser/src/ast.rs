@@ -1,92 +1,86 @@
-use std::{any, fmt};
-
-use downcast_rs::Downcast;
-
 use lexer::token::Token;
 
-pub trait Statement: fmt::Debug + any::Any + Downcast {}
-
-#[derive(Debug, PartialEq)]
-pub struct LetStatement {
-    token: Token,
-    name: Identifier,
-    value: Expression,
-}
-
-impl LetStatement {
-    pub fn new(token: Token, identifier: Identifier, expression: Expression) -> Self {
-        Self {
-            token,
-            name: identifier,
-            value: expression
-        }
-    }
-}
-
-impl Statement for LetStatement {}
-
-#[derive(Debug, PartialEq)]
-pub struct Identifier {
-    token: Token,
-}
-
-impl Identifier {
-    pub fn new(token: Token) -> Self {
-        Self { token }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct ReturnStatement {
-    token: Token,
-    value: Expression,
-}
-
-impl ReturnStatement {
-    pub fn new(token: Token, expression: Expression) -> Self {
-        Self {
-            token,
-            value: expression
-        }
-    }
-}
-
-impl Statement for ReturnStatement {}
-
-#[derive(Debug, PartialEq)]
-pub struct ExpressionStatement {
-    token: Token,
-    expression: Expression,
-}
-
-impl ExpressionStatement {
-    pub fn new(token: Token, expression: Expression) -> Self {
-        Self {
-            token,
-            expression
-        }
-    }
-}
-
-impl Statement for ExpressionStatement {}
-
-#[derive(Debug, PartialEq)]
-pub struct Expression {}
-
 pub struct Program {
-    pub statements: Vec<Box<dyn Statement>>,
+    pub stmts: Vec<Stmt>,
 }
-
 impl Default for Program {
     fn default() -> Self {
         Program::new()
     }
 }
-
 impl Program {
     pub fn new() -> Self {
-        Program {
-            statements: Vec::new(),
+        Program { stmts: Vec::new() }
+    }
+}
+
+#[derive(Debug)]
+pub enum Stmt {
+    Let(LetStmt),
+    Return(ReturnStmt),
+    Expression(ExprStmt),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct LetStmt {
+    token: Token,
+    name: IdentExpr,
+    value: Expr,
+}
+impl LetStmt {
+    pub fn new(token: Token, ident: IdentExpr, expr: Expr) -> Self {
+        Self {
+            token,
+            name: ident,
+            value: expr,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct ReturnStmt {
+    token: Token,
+    expr: Expr,
+}
+impl ReturnStmt {
+    pub fn new(token: Token, expr: Expr) -> Self {
+        Self { token, expr }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ExprStmt {
+    token: Token,
+    expr: Expr,
+}
+impl ExprStmt {
+    pub fn new(token: Token, expr: Expr) -> Self {
+        Self { token, expr }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Expr {
+    Ident(IdentExpr),
+    NoImpl,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct IdentExpr {
+    token: Token,
+}
+impl IdentExpr {
+    pub fn new(token: Token) -> Self {
+        Self { token }
+    }
+}
+
+pub enum Precedence {
+    Lowest,
+    Equals,
+    LessGreater,
+    Sum,
+    Product,
+    Prefix,
+    Call,
 }
