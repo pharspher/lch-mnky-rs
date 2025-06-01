@@ -58,11 +58,15 @@ impl Parser {
 
     fn parse_int_literal(&mut self, token: &Token) -> Option<Expr> {
         if let Token::Int(value_str) = token {
-            if let Ok(value) = value_str.parse::<i64>() {
-                Some(Expr::Int(IntLiteral::new(token.clone(), value)))
-            } else {
-                None
-            }
+            value_str
+                .parse::<i64>()
+                .map(|value| Expr::Int(IntLiteral::new(token.clone(), value)))
+                .ok()
+                .or_else(|| {
+                    self.errors
+                        .push(format!("Could not parse integer literal: {:?}", token));
+                    None
+                })
         } else {
             None
         }
@@ -124,7 +128,6 @@ impl Parser {
             ));
             return None;
         }
-        info!("[Let] Find {:?}", self.curr_token);
 
         while self.curr_token != Some(Token::SemiColon) && self.curr_token != Some(Token::EOF) {
             info!("[Let] Skip expression");
@@ -139,7 +142,7 @@ impl Parser {
 
         self.next_token();
         while self.curr_token != Some(Token::SemiColon) && self.curr_token != Some(Token::EOF) {
-            info!("[Let] Skip expression");
+            info!("[Return] Skip expression");
             self.next_token();
         }
 
