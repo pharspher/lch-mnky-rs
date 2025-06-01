@@ -37,7 +37,7 @@ impl LetStmt {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ReturnStmt {
     token: Token,
     expr: Expr,
@@ -62,6 +62,7 @@ impl ExprStmt {
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     Ident(IdentExpr),
+    Int(IntLiteral),
     NoImpl,
 }
 
@@ -72,6 +73,17 @@ pub struct IdentExpr {
 impl IdentExpr {
     pub fn new(token: Token) -> Self {
         Self { token }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct IntLiteral {
+    token: Token,
+    value: i64,
+}
+impl IntLiteral {
+    pub fn new(token: Token, value: i64) -> Self {
+        Self { token, value }
     }
 }
 

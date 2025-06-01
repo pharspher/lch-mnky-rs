@@ -6,11 +6,13 @@ use log::info;
 use lexer::lexer::Lexer;
 use lexer::token::Token;
 
-use crate::ast::{Expr, ExprStmt, IdentExpr, LetStmt, Precedence, Program, ReturnStmt, Stmt};
 use crate::ast::Expr::NoImpl;
+use crate::ast::{
+    Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Precedence, Program, ReturnStmt, Stmt,
+};
 
-type PrefixParseFn = fn(&Token) -> Option<Expr>;
-type InfixParseFn = fn(Expr) -> Option<Expr>;
+type PrefixParseFn = fn(&mut Parser, &Token) -> Option<Expr>;
+type InfixParseFn = fn(&mut Parser, Expr) -> Option<Expr>;
 
 pub struct Parser {
     lexer: Lexer,
@@ -18,7 +20,7 @@ pub struct Parser {
     next_token: Option<Token>,
     errors: Vec<String>,
     prefix_fns: HashMap<Discriminant<Token>, PrefixParseFn>,
-    infix_fns: HashMap<Discriminant<Token>, InfixParseFn>,
+    _infix_fns: HashMap<Discriminant<Token>, InfixParseFn>,
 }
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
@@ -28,12 +30,16 @@ impl Parser {
             next_token: None,
             errors: Vec::new(),
             prefix_fns: HashMap::new(),
-            infix_fns: HashMap::new(),
+            _infix_fns: HashMap::new(),
         };
 
         parser.prefix_fns.insert(
             discriminant(&Token::Identifier("".to_string())),
             Self::parse_ident,
+        );
+        parser.prefix_fns.insert(
+            discriminant(&Token::Int("".to_string())),
+            Self::parse_int_literal,
         );
 
         parser.next_token();
@@ -46,11 +52,24 @@ impl Parser {
         self.next_token = Some(self.lexer.next_token());
     }
 
-    fn parse_ident(token: &Token) -> Option<Expr> {
+    fn parse_ident(&mut self, token: &Token) -> Option<Expr> {
         Some(Expr::Ident(IdentExpr::new(token.clone())))
     }
 
+    fn parse_int_literal(&mut self, token: &Token) -> Option<Expr> {
+        if let Token::Int(value_str) = token {
+            if let Ok(value) = value_str.parse::<i64>() {
+                Some(Expr::Int(IntLiteral::new(token.clone(), value)))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     pub fn parse_program(&mut self) -> Program {
+        info!("[Program] Start parsing");
         let mut program = Program::new();
 
         while let Some(token) = &self.curr_token {
@@ -78,7 +97,6 @@ impl Parser {
                 }
             }
 
-            info!("============================");
             self.next_token();
         }
 
@@ -141,9 +159,9 @@ impl Parser {
         stmt
     }
 
-    fn parse_expr(&self, token: &Token, prededence: Precedence) -> Option<Expr> {
+    fn parse_expr(&mut self, token: &Token, _precedence: Precedence) -> Option<Expr> {
         if let Some(prefix) = self.prefix_fns.get(&discriminant(token)) {
-            prefix(token)
+            prefix(self, token)
         } else {
             None
         }
@@ -157,21 +175,22 @@ mod test {
     use lexer::lexer::Lexer;
     use lexer::token::Token;
 
-    use crate::ast::{Expr, ExprStmt, IdentExpr, LetStmt, Stmt};
     use crate::ast::Expr::NoImpl;
+    use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
     use crate::init_logger;
     use crate::parser::Parser;
 
     #[test]
-    fn test_parse_program() {
+    fn test_let_stmt() {
         init_logger();
 
         let input = r"
             let x = 5;
             let y = 10;
             let result = x + y;";
+        let program = parse_program(input);
 
-        let expected_identifiers: Vec<LetStmt> = ["x", "y", "result"]
+        let expected_ident: Vec<LetStmt> = ["x", "y", "result"]
             .iter()
             .map(|identifier_name| {
                 LetStmt::new(
@@ -182,12 +201,6 @@ mod test {
             })
             .collect();
 
-        let lexer = Lexer::new(input.to_string());
-        let mut parser = Parser::new(lexer);
-        let program = parser.parse_program();
-        info!("Errors: {:?}", parser.errors);
-        info!("Stmts: {:?}", program.stmts);
-
         assert_eq!(program.stmts.len(), 3);
 
         program.stmts.iter().enumerate().for_each(|(i, stmt)| {
@@ -196,37 +209,87 @@ mod test {
                     Stmt::Let(payload) => Some(payload),
                     _ => None,
                 },
-                Some(&expected_identifiers[i])
+                Some(&expected_ident[i])
             );
         });
     }
 
     #[test]
-    fn test_identifier_expression() {
+    fn test_return_stmt() {
         init_logger();
 
-        let input = "foobar";
-        let lexer = Lexer::new(input.to_string());
-        let mut parser = Parser::new(lexer);
-        let program = parser.parse_program();
-        info!("Errors: {:?}", parser.errors);
+        let input = "return x;";
+        let program = parse_program(input);
 
         assert_eq!(program.stmts.len(), 1);
 
-        let expression_statement = if let Some(Stmt::Expression(stmt)) = program.stmts.first() {
+        assert_eq!(program.stmts.len(), 1);
+        let stmt = if let Some(Stmt::Return(return_stmt)) = program.stmts.first() {
+            Some(return_stmt)
+        } else {
+            None
+        };
+        assert!(stmt.is_some());
+
+        assert_eq!(*stmt.unwrap(), ReturnStmt::new(Token::Return, NoImpl))
+    }
+
+    #[test]
+    fn test_ident_expr() {
+        init_logger();
+
+        let input = "foobar";
+        let program = parse_program(input);
+
+        assert_eq!(program.stmts.len(), 1);
+
+        let expr_stmt = if let Some(Stmt::Expression(stmt)) = program.stmts.first() {
             Some(stmt)
         } else {
             None
         };
-        assert!(expression_statement.is_some());
+        assert!(expr_stmt.is_some());
 
-        let es = expression_statement.unwrap();
         assert_eq!(
-            *es,
+            *expr_stmt.unwrap(),
             ExprStmt::new(
                 Token::Identifier("foobar".to_string()),
                 Expr::Ident(IdentExpr::new(Token::Identifier("foobar".to_string())))
             )
         )
+    }
+
+    #[test]
+    fn test_int_literal() {
+        init_logger();
+
+        let input = "5;";
+        let program = parse_program(input);
+
+        assert_eq!(program.stmts.len(), 1);
+
+        let expr_stmt = if let Some(Stmt::Expression(stmt)) = program.stmts.first() {
+            Some(stmt)
+        } else {
+            None
+        };
+        assert!(expr_stmt.is_some());
+
+        assert_eq!(
+            *expr_stmt.unwrap(),
+            ExprStmt::new(
+                Token::Int("5".to_string()),
+                Expr::Int(IntLiteral::new(Token::Int("5".to_string()), 5))
+            )
+        )
+    }
+
+    fn parse_program(input: &str) -> Program {
+        let lexer = Lexer::new(input.to_string());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        info!("Stmts: {:?}", program.stmts);
+        info!("Errors: {:?}", parser.errors);
+        program
     }
 }
