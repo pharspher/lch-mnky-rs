@@ -1,11 +1,11 @@
-use std::any;
-use std::fmt;
-
-use downcast_rs::Downcast;
 use log::info;
 
 use lexer::lexer::Lexer;
 use lexer::token::Token;
+
+use crate::ast::{Expression, Identifier, LetStatement, Program, ReturnStatement, Statement};
+
+mod ast;
 
 pub struct Parser {
     lexer: Lexer,
@@ -71,9 +71,7 @@ impl Parser {
         self.next_token();
         let token = self.curr_token.take();
         let identifier = if let Some(Token::Identifier(_)) = token {
-            Identifier {
-                token: token.unwrap(),
-            }
+            Identifier::new(token.unwrap())
         } else {
             self.errors.push(format!("Expected identifier after let, found: {:?}", token));
             return None;
@@ -94,11 +92,7 @@ impl Parser {
             self.next_token();
         }
 
-        Some(Box::new(LetStatement {
-            token: let_token,
-            name: identifier,
-            value: Expression {},
-        }))
+        Some(Box::new(LetStatement::new(let_token, identifier, Expression {})))
     }
 
     pub fn parse_return_statement(&mut self) -> Option<Box<dyn Statement>> {
@@ -110,55 +104,7 @@ impl Parser {
             self.next_token();
         }
 
-        Some(Box::new(ReturnStatement {
-            token: return_token,
-            value: Expression {}
-        }))
-    }
-}
-
-pub trait Statement: fmt::Debug + any::Any + Downcast {}
-
-#[derive(Debug, PartialEq)]
-pub struct LetStatement {
-    token: Token,
-    name: Identifier,
-    value: Expression,
-}
-
-impl Statement for LetStatement {}
-
-#[derive(Debug, PartialEq)]
-pub struct Identifier {
-    token: Token,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct ReturnStatement {
-    token: Token,
-    value: Expression,
-}
-
-impl Statement for ReturnStatement {}
-
-#[derive(Debug, PartialEq)]
-pub struct Expression {}
-
-pub struct Program {
-    statements: Vec<Box<dyn Statement>>,
-}
-
-impl Program {
-    pub fn new() -> Self {
-        Program {
-            statements: Vec::new(),
-        }
-    }
-}
-
-impl Default for Program {
-    fn default() -> Self {
-        Program::new()
+        Some(Box::new(ReturnStatement::new(return_token, Expression {})))
     }
 }
 
@@ -169,7 +115,8 @@ mod test {
     use lexer::lexer::Lexer;
     use lexer::token::Token;
 
-    use crate::{Expression, Identifier, LetStatement, Parser};
+    use crate::ast::{Expression, Identifier, LetStatement};
+    use crate::Parser;
 
     #[test]
     fn test_parse_program() {
@@ -182,13 +129,11 @@ mod test {
 
         let expected_identifiers: Vec<LetStatement> = ["x", "y", "result"]
             .iter()
-            .map(|identifier_name| LetStatement {
-                token: Token::Let,
-                name: Identifier {
-                    token: Token::Identifier(identifier_name.to_string()),
-                },
-                value: Expression {},
-            })
+            .map(|identifier_name| LetStatement::new(
+                Token::Let,
+                Identifier::new(Token::Identifier(identifier_name.to_string())),
+                Expression {},
+            ))
             .collect();
 
         let lexer = Lexer::new(input.to_string());
