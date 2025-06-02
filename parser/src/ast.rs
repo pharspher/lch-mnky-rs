@@ -63,6 +63,7 @@ impl ExprStmt {
 pub enum Expr {
     Ident(IdentExpr),
     Int(IntLiteral),
+    Prefix(PrefixExpr),
     NoImpl,
 }
 
@@ -84,6 +85,20 @@ pub struct IntLiteral {
 impl IntLiteral {
     pub fn new(token: Token, value: i64) -> Self {
         Self { token, value }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct PrefixExpr {
+    token: Token,
+    expr: Box<Expr>,
+}
+impl PrefixExpr {
+    pub fn new(token: Token, expr: Expr) -> Self {
+        Self {
+            token,
+            expr: Box::new(expr),
+        }
     }
 }
 

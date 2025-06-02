@@ -4,8 +4,10 @@ use lexer::lexer::Lexer;
 use lexer::token::Token;
 
 use crate::ast::Expr::NoImpl;
+use crate::ast::Precedence::Prefix;
 use crate::ast::{
-    Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Precedence, Program, ReturnStmt, Stmt,
+    Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Precedence, PrefixExpr, Program, ReturnStmt,
+    Stmt,
 };
 
 pub struct Parser {
@@ -127,13 +129,10 @@ impl Parser {
     }
 
     fn parse_expr(&mut self, token: &Token, _precedence: Precedence) -> Option<Expr> {
-        self.parse_prefix(token)
-    }
-
-    fn parse_prefix(&mut self, token: &Token) -> Option<Expr> {
         match token {
             Token::Identifier(_) => self.parse_ident(token),
             Token::Int(_) => self.parse_int_literal(token),
+            Token::Bang | Token::Minus => self.parse_prefix(token),
             _ => None,
         }
     }
@@ -157,6 +156,15 @@ impl Parser {
             None
         }
     }
+
+    fn parse_prefix(&mut self, token: &Token) -> Option<Expr> {
+        self.next_token();
+
+        self.curr_token
+            .take()
+            .and_then(|expr_token| self.parse_expr(&expr_token, Prefix))
+            .map(|right_expr| Expr::Prefix(PrefixExpr::new(token.clone(), right_expr)))
+    }
 }
 
 #[cfg(test)]
@@ -167,7 +175,9 @@ mod test {
     use lexer::token::Token;
 
     use crate::ast::Expr::NoImpl;
-    use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
+    use crate::ast::{
+        Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, PrefixExpr, Program, ReturnStmt, Stmt,
+    };
     use crate::init_logger;
     use crate::parser::Parser;
 
@@ -272,6 +282,50 @@ mod test {
                 Token::Int("5".to_string()),
                 Expr::Int(IntLiteral::new(Token::Int("5".to_string()), 5))
             )
+        )
+    }
+
+    #[test]
+    fn test_prefix_expr() {
+        init_logger();
+
+        let input = r"
+            !5;
+            -15;";
+        let program = parse_program(input);
+
+        let actual_expr_stmts: Vec<Option<&ExprStmt>> = program
+            .stmts
+            .iter()
+            .map(|stmt| {
+                if let Stmt::Expression(stmt) = stmt {
+                    Some(stmt)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        assert_eq!(2, actual_expr_stmts.len());
+
+        assert_eq!(
+            actual_expr_stmts,
+            vec![
+                Some(&ExprStmt::new(
+                    Token::Bang,
+                    Expr::Prefix(PrefixExpr::new(
+                        Token::Bang,
+                        Expr::Int(IntLiteral::new(Token::Int("5".to_string()), 5))
+                    ))
+                )),
+                Some(&ExprStmt::new(
+                    Token::Minus,
+                    Expr::Prefix(PrefixExpr::new(
+                        Token::Minus,
+                        Expr::Int(IntLiteral::new(Token::Int("15".to_string()), 15))
+                    ))
+                ))
+            ]
         )
     }
 
