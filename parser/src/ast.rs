@@ -64,6 +64,7 @@ pub enum Expr {
     Ident(IdentExpr),
     Int(IntLiteral),
     Prefix(PrefixExpr),
+    Infix(InfixExpr),
     NoImpl,
 }
 
@@ -102,6 +103,23 @@ impl PrefixExpr {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct InfixExpr {
+    token: Token,
+    left_expr: Box<Expr>,
+    right_expr: Box<Expr>,
+}
+impl InfixExpr {
+    pub fn new(token: Token, left_expr: Expr, right_expr: Expr) -> Self {
+        Self {
+            token,
+            left_expr: Box::new(left_expr),
+            right_expr: Box::new(right_expr),
+        }
+    }
+}
+
+#[derive(Ord, PartialOrd, Eq, PartialEq)]
 pub enum Precedence {
     Lowest,
     Equals,
