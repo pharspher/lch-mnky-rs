@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::mem::{Discriminant, discriminant};
-
 use log::info;
 
 use lexer::lexer::Lexer;
@@ -11,16 +8,11 @@ use crate::ast::{
     Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Precedence, Program, ReturnStmt, Stmt,
 };
 
-type PrefixParseFn = fn(&mut Parser, &Token) -> Option<Expr>;
-type InfixParseFn = fn(&mut Parser, Expr) -> Option<Expr>;
-
 pub struct Parser {
     lexer: Lexer,
     curr_token: Option<Token>,
     next_token: Option<Token>,
     errors: Vec<String>,
-    prefix_fns: HashMap<Discriminant<Token>, PrefixParseFn>,
-    _infix_fns: HashMap<Discriminant<Token>, InfixParseFn>,
 }
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
@@ -29,19 +21,7 @@ impl Parser {
             curr_token: None,
             next_token: None,
             errors: Vec::new(),
-            prefix_fns: HashMap::new(),
-            _infix_fns: HashMap::new(),
         };
-
-        parser.prefix_fns.insert(
-            discriminant(&Token::Identifier("".to_string())),
-            Self::parse_ident,
-        );
-        parser.prefix_fns.insert(
-            discriminant(&Token::Int("".to_string())),
-            Self::parse_int_literal,
-        );
-
         parser.next_token();
         parser.next_token();
         parser
@@ -50,26 +30,6 @@ impl Parser {
     fn next_token(&mut self) {
         self.curr_token = self.next_token.take();
         self.next_token = Some(self.lexer.next_token());
-    }
-
-    fn parse_ident(&mut self, token: &Token) -> Option<Expr> {
-        Some(Expr::Ident(IdentExpr::new(token.clone())))
-    }
-
-    fn parse_int_literal(&mut self, token: &Token) -> Option<Expr> {
-        if let Token::Int(value_str) = token {
-            value_str
-                .parse::<i64>()
-                .map(|value| Expr::Int(IntLiteral::new(token.clone(), value)))
-                .ok()
-                .or_else(|| {
-                    self.errors
-                        .push(format!("Could not parse integer literal: {:?}", token));
-                    None
-                })
-        } else {
-            None
-        }
     }
 
     pub fn parse_program(&mut self) -> Program {
@@ -108,7 +68,7 @@ impl Parser {
     }
 
     pub fn parse_let_stmt(&mut self) -> Option<Stmt> {
-        let let_token = self.curr_token.take().unwrap();
+        let let_token = self.curr_token.take()?;
 
         self.next_token();
         let token = self.curr_token.take();
@@ -121,7 +81,7 @@ impl Parser {
         };
 
         self.next_token();
-        if self.curr_token != Some(Token::Assign) {
+        if !matches!(self.curr_token, Some(Token::Assign)) {
             self.errors.push(format!(
                 "Expected '=' after identifier, found: {:?}",
                 self.curr_token
@@ -129,7 +89,9 @@ impl Parser {
             return None;
         }
 
-        while self.curr_token != Some(Token::SemiColon) && self.curr_token != Some(Token::EOF) {
+        while !matches!(self.curr_token, Some(Token::SemiColon))
+            && !matches!(self.curr_token, Some(Token::EOF))
+        {
             info!("[Let] Skip expression");
             self.next_token();
         }
@@ -141,7 +103,9 @@ impl Parser {
         let return_token = self.curr_token.take().unwrap();
 
         self.next_token();
-        while self.curr_token != Some(Token::SemiColon) && self.curr_token != Some(Token::EOF) {
+        while !matches!(self.curr_token, Some(Token::SemiColon))
+            && !matches!(self.curr_token, Some(Token::EOF))
+        {
             info!("[Return] Skip expression");
             self.next_token();
         }
@@ -155,7 +119,7 @@ impl Parser {
                 .map(|exp| Stmt::Expression(ExprStmt::new(token, exp)))
         });
 
-        if self.next_token == Some(Token::SemiColon) {
+        if matches!(self.next_token, Some(Token::SemiColon)) {
             self.next_token();
         }
 
@@ -163,8 +127,32 @@ impl Parser {
     }
 
     fn parse_expr(&mut self, token: &Token, _precedence: Precedence) -> Option<Expr> {
-        if let Some(prefix) = self.prefix_fns.get(&discriminant(token)) {
-            prefix(self, token)
+        self.parse_prefix(token)
+    }
+
+    fn parse_prefix(&mut self, token: &Token) -> Option<Expr> {
+        match token {
+            Token::Identifier(_) => self.parse_ident(token),
+            Token::Int(_) => self.parse_int_literal(token),
+            _ => None,
+        }
+    }
+
+    fn parse_ident(&mut self, token: &Token) -> Option<Expr> {
+        Some(Expr::Ident(IdentExpr::new(token.clone())))
+    }
+
+    fn parse_int_literal(&mut self, token: &Token) -> Option<Expr> {
+        if let Token::Int(value_str) = token {
+            value_str
+                .parse::<i64>()
+                .map(|value| Expr::Int(IntLiteral::new(token.clone(), value)))
+                .ok()
+                .or_else(|| {
+                    self.errors
+                        .push(format!("Could not parse integer literal: {:?}", token));
+                    None
+                })
         } else {
             None
         }
