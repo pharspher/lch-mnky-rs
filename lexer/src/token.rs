@@ -1,6 +1,6 @@
-use std::fmt;
+use derive_more::Display;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Display)]
 pub enum Token {
     Illegal,
     EOF,
@@ -16,16 +16,26 @@ pub enum Token {
     True,
     False,
 
+    #[display("=")]
     Assign,
+    #[display("+")]
     Plus,
+    #[display("!")]
     Bang,
+    #[display("-")]
     Minus,
+    #[display("/")]
     Slash,
+    #[display("*")]
     Asterisk,
 
+    #[display("<")]
     LT,
+    #[display(">")]
     GT,
+    #[display("==")]
     EQ,
+    #[display("!=")]
     NotEQ,
 
     SemiColon,
@@ -48,26 +58,6 @@ impl Token {
             "true" => Some(Token::True),
             "false" => Some(Token::False),
             _ => None,
-        }
-    }
-}
-
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Token::Minus => write!(f, "-"),
-            Token::Plus => write!(f, "+"),
-            Token::Asterisk => write!(f, "*"),
-            Token::Slash => write!(f, "/"),
-            Token::Bang => write!(f, "!"),
-            Token::Assign => write!(f, "="),
-            Token::LT => write!(f, "<"),
-            Token::GT => write!(f, ">"),
-            Token::EQ => write!(f, "=="),
-            Token::NotEQ => write!(f, "!="),
-            _ => {
-                write!(f, "Token {:?} doesn't have a display implementation", self)
-            }
         }
     }
 }
