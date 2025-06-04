@@ -66,7 +66,7 @@ impl fmt::Display for Token {
             Token::EQ => write!(f, "=="),
             Token::NotEQ => write!(f, "!="),
             _ => {
-                panic!("Token {:?} does not have a display implementation", self)
+                write!(f, "Token {:?} doesn't have a display implementation", self)
             }
         }
     }

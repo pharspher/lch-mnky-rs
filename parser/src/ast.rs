@@ -1,5 +1,4 @@
 use std::fmt;
-use std::fmt::Error;
 
 use lexer::token::Token;
 
@@ -53,7 +52,7 @@ impl fmt::Display for LetStmt {
         if let Token::Identifier(ident) = &self.name.token {
             write!(f, "let {} = {};", ident, self.value)
         } else {
-            Err(Error)
+            write!(f, "Unexpected token {:?} in LetStmt", self.name.token)
         }
     }
 }
@@ -125,7 +124,7 @@ impl fmt::Display for IdentExpr {
         if let Token::Identifier(ident) = &self.token {
             write!(f, "{}", ident)
         } else {
-            Err(Error)
+            write!(f, "Unexpected token {:?} in IdentExpr", self.token)
         }
     }
 }
@@ -145,7 +144,7 @@ impl fmt::Display for IntLiteral {
         if let Token::Int(value) = &self.token {
             write!(f, "{}", value)
         } else {
-            Err(Error)
+            write!(f, "Unexpected token {:?} in IntLiteral", self.token)
         }
     }
 }

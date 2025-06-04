@@ -3,12 +3,12 @@ use log::info;
 use lexer::lexer::Lexer;
 use lexer::token::Token;
 
+use crate::ast::Expr::NoImpl;
+use crate::ast::Precedence::Prefix;
 use crate::ast::{
     Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Precedence, PrefixExpr, Program,
     ReturnStmt, Stmt,
 };
-use crate::ast::Expr::NoImpl;
-use crate::ast::Precedence::Prefix;
 
 pub struct Parser {
     lexer: Lexer,
@@ -252,8 +252,8 @@ mod test {
     use lexer::lexer::Lexer;
     use lexer::token::Token;
 
-    use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
     use crate::ast::Expr::NoImpl;
+    use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
     use crate::init_logger;
     use crate::parser::Parser;
 
