@@ -3,12 +3,12 @@ use log::{info, warn};
 use lexer::lexer::Lexer;
 use lexer::token::Token;
 
+use crate::ast::Expr::NoImpl;
+use crate::ast::Precedence::Prefix;
 use crate::ast::{
     Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Precedence, PrefixExpr, Program,
     ReturnStmt, Stmt,
 };
-use crate::ast::Expr::NoImpl;
-use crate::ast::Precedence::Prefix;
 
 pub struct Parser {
     lexer: Lexer,
@@ -18,6 +18,7 @@ pub struct Parser {
 }
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
+        info!("[Program] Input: {}", lexer.input);
         let mut parser = Parser {
             lexer,
             curr_token: None,
@@ -33,19 +34,19 @@ impl Parser {
         self.curr_token = self.next_token.take();
         self.next_token = Some(self.lexer.next_token());
         info!(
-            "========>, curr: {:?}, next: {:?}",
+            "========> curr: {:?}, next: {:?}",
             self.curr_token, self.next_token
         );
     }
 
     pub fn parse_program(&mut self) -> Program {
         let mut program = Program::new();
-        info!("[Program]: Start parsing program: {}", self.lexer.input);
 
         while let Some(token) = &self.curr_token {
-            info!("[Program]: Process current token {:?}", token);
+            info!("[Program] Process curr: {:?}", token);
 
             match token {
+                Token::EOF => break,
                 Token::Let => {
                     if let Some(stmt) = self.parse_let_stmt() {
                         info!("[Program] Resolve let stmt {:?}", stmt);
@@ -58,7 +59,6 @@ impl Parser {
                         program.stmts.push(stmt);
                     }
                 }
-                Token::EOF => break,
                 _ => {
                     if let Some(stmt) = self.parse_expr_stmt() {
                         info!("[Program] Resolve expr stmt {:?}", stmt);
@@ -305,8 +305,8 @@ mod test {
     use lexer::lexer::Lexer;
     use lexer::token::Token;
 
-    use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
     use crate::ast::Expr::NoImpl;
+    use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
     use crate::init_logger;
     use crate::parser::Parser;
 
