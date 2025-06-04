@@ -1,14 +1,14 @@
-use log::info;
+use log::{info, warn};
 
 use lexer::lexer::Lexer;
 use lexer::token::Token;
 
+use crate::ast::{
+    Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Precedence, PrefixExpr, Program,
+    ReturnStmt, Stmt,
+};
 use crate::ast::Expr::NoImpl;
 use crate::ast::Precedence::Prefix;
-use crate::ast::{
-    Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Precedence, PrefixExpr, Program, ReturnStmt,
-    Stmt,
-};
 
 pub struct Parser {
     lexer: Lexer,
@@ -32,32 +32,36 @@ impl Parser {
     fn next_token(&mut self) {
         self.curr_token = self.next_token.take();
         self.next_token = Some(self.lexer.next_token());
+        info!(
+            "========>, curr: {:?}, next: {:?}",
+            self.curr_token, self.next_token
+        );
     }
 
     pub fn parse_program(&mut self) -> Program {
-        info!("[Program] Start parsing");
         let mut program = Program::new();
+        info!("[Program]: Start parsing program: {}", self.lexer.input);
 
         while let Some(token) = &self.curr_token {
-            info!("[Program]: Find {:?}", token);
+            info!("[Program]: Process current token {:?}", token);
 
             match token {
                 Token::Let => {
                     if let Some(stmt) = self.parse_let_stmt() {
-                        info!("[Program] Resolve stmt {:?}", stmt);
+                        info!("[Program] Resolve let stmt {:?}", stmt);
                         program.stmts.push(stmt);
                     }
                 }
                 Token::Return => {
                     if let Some(stmt) = self.parse_return_stmt() {
-                        info!("[Program] Resolve stmt {:?}", stmt);
+                        info!("[Program] Resolve return stmt {:?}", stmt);
                         program.stmts.push(stmt);
                     }
                 }
                 Token::EOF => break,
                 _ => {
                     if let Some(stmt) = self.parse_expr_stmt() {
-                        info!("[Program] Resolve stmt {:?}", stmt);
+                        info!("[Program] Resolve expr stmt {:?}", stmt);
                         program.stmts.push(stmt);
                     }
                 }
@@ -117,27 +121,122 @@ impl Parser {
 
     pub fn parse_expr_stmt(&mut self) -> Option<Stmt> {
         let stmt = self.curr_token.take().and_then(|token| {
-            self.parse_expr(&token, Precedence::Lowest)
+            info!(
+                "[ExprStmt] Parse expression with current token: {:?}",
+                token
+            );
+            self.parse_expr(&token, Precedence::Lowest, "[ExprStmt]")
                 .map(|exp| Stmt::Expression(ExprStmt::new(token, exp)))
         });
 
         if matches!(self.next_token, Some(Token::SemiColon)) {
+            info!("[ExprStmt], next is SemiColon, advance");
             self.next_token();
         }
 
         stmt
     }
 
-    fn parse_expr(&mut self, token: &Token, _precedence: Precedence) -> Option<Expr> {
-        match token {
+    fn parse_expr(&mut self, token: &Token, precedence: Precedence, tag: &str) -> Option<Expr> {
+        let tag = format!("{}[Expr]", &tag);
+        info!(
+            "{}, parse token: [{:?}], precedence: {:?}, curr[{:?}], next: [{:?}]",
+            &tag, token, precedence, self.curr_token, self.next_token
+        );
+        let mut left_prefix = match token {
             Token::Identifier(_) => self.parse_ident(token),
             Token::Int(_) => self.parse_int_literal(token),
-            Token::Bang | Token::Minus => self.parse_prefix(token),
-            _ => None,
+            Token::Bang | Token::Minus => self.parse_prefix(token, tag.as_str()),
+            _ => {
+                self.errors.push(format!(
+                    "No expression parser implemented for token: {:?}",
+                    token
+                ));
+                warn!(
+                    "{tag} No expression parser implemented for token: {:?}",
+                    token
+                );
+                None
+            }
+        };
+        info!(
+            "{tag}, initial left_prefix: [{}], curr[{:?}], next: [{:?}]",
+            left_prefix
+                .as_ref()
+                .map(|expr| expr.to_string())
+                .unwrap_or("None".to_string()),
+            self.curr_token,
+            self.next_token
+        );
+
+        while !matches!(self.next_token, Some(Token::SemiColon)) {
+            if let Some(ref next_token) = self.next_token {
+                let next_precedence = Self::get_precedence(next_token);
+                info!(
+                    "{tag}, initial_token: {:?}, initial_precedence: {:?}, next_token: {:?}, next_precedence: {:?}",
+                    token, precedence, next_token, next_precedence
+                );
+                if precedence >= next_precedence {
+                    info!(
+                        "{tag} break as initial precedence {:?} >= next precedence {:?}",
+                        precedence, next_precedence
+                    );
+                    break;
+                }
+            }
+
+            self.next_token();
+
+            match self.curr_token {
+                Some(Token::Plus)
+                | Some(Token::Minus)
+                | Some(Token::Asterisk)
+                | Some(Token::Slash)
+                | Some(Token::EQ)
+                | Some(Token::NotEQ)
+                | Some(Token::LT)
+                | Some(Token::GT) => {
+                    let curr_token = self.curr_token.take().unwrap();
+                    if let Some(left) = left_prefix {
+                        left_prefix = self.parse_infix(curr_token, left, &tag);
+                        info!(
+                            "{tag}, updated left_prefix: [{:?}], curr[{:?}], next: [{:?}]",
+                            left_prefix
+                                .as_ref()
+                                .map(|expr| expr.to_string())
+                                .unwrap_or("None".to_string()),
+                            self.curr_token,
+                            self.next_token
+                        );
+                    } else {
+                        self.errors.push(format!(
+                            "Expected left expression for infix operator: {:?}",
+                            curr_token
+                        ));
+                        warn!(
+                            "{tag} No left expression for infix operator: {:?}",
+                            curr_token
+                        );
+                        return None;
+                    }
+                }
+                _ => break,
+            }
         }
+        info!(
+            "{} final left_prefix: [{:?}], curr[{:?}], next: [{:?}]",
+            tag,
+            left_prefix
+                .as_ref()
+                .map(|expr| expr.to_string())
+                .unwrap_or("None".to_string()),
+            self.curr_token,
+            self.next_token
+        );
+        left_prefix
     }
 
-    fn parse_ident(&mut self, token: &Token) -> Option<Expr> {
+    fn parse_ident(&self, token: &Token) -> Option<Expr> {
         Some(Expr::Ident(IdentExpr::new(token.clone())))
     }
 
@@ -157,13 +256,45 @@ impl Parser {
         }
     }
 
-    fn parse_prefix(&mut self, token: &Token) -> Option<Expr> {
+    fn parse_prefix(&mut self, token: &Token, tag: &str) -> Option<Expr> {
+        let tag = format!("{}[Prefix]", tag);
+        info!(
+            "{tag} token: {:?}, curr[{:?}], next[{:?}]",
+            token, self.curr_token, self.next_token
+        );
         self.next_token();
 
         self.curr_token
             .take()
-            .and_then(|expr_token| self.parse_expr(&expr_token, Prefix))
+            .and_then(|expr_token| self.parse_expr(&expr_token, Prefix, &tag))
             .map(|right_expr| Expr::Prefix(PrefixExpr::new(token.clone(), right_expr)))
+    }
+
+    fn parse_infix(&mut self, token: Token, left: Expr, tag: &str) -> Option<Expr> {
+        let tag = format!("{}[Infix]", tag);
+        info!(
+            "{tag} token: {:?}, left_expr: {:?}, curr[{:?}], next[{:?}]",
+            token,
+            left.to_string(),
+            self.curr_token,
+            self.next_token
+        );
+        self.next_token();
+
+        self.curr_token
+            .take()
+            .and_then(|expr_token| self.parse_expr(&expr_token, Self::get_precedence(&token), &tag))
+            .map(|right_expr| Expr::Infix(InfixExpr::new(token, left, right_expr)))
+    }
+
+    fn get_precedence(token: &Token) -> Precedence {
+        match token {
+            Token::Plus | Token::Minus => Precedence::Sum,
+            Token::Asterisk | Token::Slash => Precedence::Product,
+            Token::GT | Token::LT => Precedence::LessGreater,
+            Token::EQ | Token::NotEQ => Precedence::Equals,
+            _ => Precedence::Lowest,
+        }
     }
 }
 
@@ -174,10 +305,8 @@ mod test {
     use lexer::lexer::Lexer;
     use lexer::token::Token;
 
+    use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
     use crate::ast::Expr::NoImpl;
-    use crate::ast::{
-        Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, PrefixExpr, Program, ReturnStmt, Stmt,
-    };
     use crate::init_logger;
     use crate::parser::Parser;
 
@@ -282,7 +411,7 @@ mod test {
                 Token::Int("5".to_string()),
                 Expr::Int(IntLiteral::new(Token::Int("5".to_string()), 5))
             )
-        )
+        );
     }
 
     #[test]
@@ -290,43 +419,27 @@ mod test {
         init_logger();
 
         let input = r"
-            !5;
-            -15;";
+            !15;
+            -x;";
+
         let program = parse_program(input);
+        assert_eq!(program.stmts.len(), 2);
 
-        let actual_expr_stmts: Vec<Option<&ExprStmt>> = program
-            .stmts
-            .iter()
-            .map(|stmt| {
-                if let Stmt::Expression(stmt) = stmt {
-                    Some(stmt)
-                } else {
-                    None
-                }
-            })
-            .collect();
+        assert_eq!("!(15);", program.stmts.first().unwrap().to_string());
+        assert_eq!("-(x);", program.stmts.get(1).unwrap().to_string());
+    }
 
-        assert_eq!(2, actual_expr_stmts.len());
+    #[test]
+    fn test_infix_expr() {
+        init_logger();
 
-        assert_eq!(
-            actual_expr_stmts,
-            vec![
-                Some(&ExprStmt::new(
-                    Token::Bang,
-                    Expr::Prefix(PrefixExpr::new(
-                        Token::Bang,
-                        Expr::Int(IntLiteral::new(Token::Int("5".to_string()), 5))
-                    ))
-                )),
-                Some(&ExprStmt::new(
-                    Token::Minus,
-                    Expr::Prefix(PrefixExpr::new(
-                        Token::Minus,
-                        Expr::Int(IntLiteral::new(Token::Int("15".to_string()), 15))
-                    ))
-                ))
-            ]
-        )
+        let input = "a + b * c + d / e - f;";
+
+        let program = parse_program(input);
+        assert_eq!(program.stmts.len(), 1);
+
+        let expect = "(((a) + ((b) * (c))) + ((d) / (e))) - (f);";
+        assert_eq!(expect, program.stmts.first().unwrap().to_string());
     }
 
     fn parse_program(input: &str) -> Program {
