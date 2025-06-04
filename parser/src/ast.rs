@@ -1,6 +1,6 @@
-use std::fmt;
-
+use derive_more::with_trait::Display;
 use lexer::token::Token;
+use std::fmt;
 
 pub struct Program {
     pub stmts: Vec<Stmt>,
@@ -194,14 +194,21 @@ impl fmt::Display for InfixExpr {
     }
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Display)]
 pub enum Precedence {
+    #[display("Lowest")]
     Lowest,
+    #[display("Equals")]
     Equals,
+    #[display("LessGreater")]
     LessGreater,
+    #[display("Sum")]
     Sum,
+    #[display("Product")]
     Product,
+    #[display("Prefix")]
     Prefix,
+    #[display("Call")]
     Call,
 }
 

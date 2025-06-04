@@ -1,7 +1,7 @@
-use log::{info, warn};
-
 use lexer::lexer::Lexer;
 use lexer::token::Token;
+use log::{info, warn};
+use tracing::instrument;
 
 use crate::ast::Expr::NoImpl;
 use crate::ast::Precedence::Prefix;
@@ -10,6 +10,7 @@ use crate::ast::{
     ReturnStmt, Stmt,
 };
 
+#[derive(Debug)]
 pub struct Parser {
     lexer: Lexer,
     curr_token: Option<Token>,
@@ -33,35 +34,31 @@ impl Parser {
     fn next_token(&mut self) {
         self.curr_token = self.next_token.take();
         self.next_token = Some(self.lexer.next_token());
-        info!(
-            "========> curr: {:?}, next: {:?}",
-            self.curr_token, self.next_token
-        );
     }
 
     pub fn parse_program(&mut self) -> Program {
         let mut program = Program::new();
 
-        while let Some(token) = &self.curr_token {
-            info!("[Program] Process curr: {:?}", token);
+        while let Some(ref token) = self.curr_token {
+            info!("=====> {token}");
 
             match token {
                 Token::EOF => break,
                 Token::Let => {
                     if let Some(stmt) = self.parse_let_stmt() {
-                        info!("[Program] Resolve let stmt {:?}", stmt);
+                        info!("Resolve let stmt {stmt}");
                         program.stmts.push(stmt);
                     }
                 }
                 Token::Return => {
                     if let Some(stmt) = self.parse_return_stmt() {
-                        info!("[Program] Resolve return stmt {:?}", stmt);
+                        info!("Resolve return stmt {stmt}");
                         program.stmts.push(stmt);
                     }
                 }
                 _ => {
                     if let Some(stmt) = self.parse_expr_stmt() {
-                        info!("[Program] Resolve expr stmt {:?}", stmt);
+                        info!("Resolve expr stmt {stmt}");
                         program.stmts.push(stmt);
                     }
                 }
@@ -74,21 +71,26 @@ impl Parser {
     }
 
     pub fn parse_let_stmt(&mut self) -> Option<Stmt> {
-        let let_token = self.curr_token.take()?;
+        assert!(
+            matches!(self.curr_token, Some(Token::Let)),
+            "Expect self.curr_token to be Token::Let, found: {:?}",
+            self.curr_token
+        );
 
         self.next_token();
-        let token = self.curr_token.take();
-        let identifier = if let Some(Token::Identifier(_)) = token {
-            IdentExpr::new(token.unwrap())
+        let identifier = if let Some(Token::Identifier(ref __)) = self.curr_token {
+            IdentExpr::new(self.curr_token.take_and_log()?)
         } else {
-            self.errors
-                .push(format!("Expected identifier after let, found: {:?}", token));
+            self.push_error_and_log(format!(
+                "Expected identifier after let, found: {:?}",
+                self.curr_token
+            ));
             return None;
         };
 
         self.next_token();
         if !matches!(self.curr_token, Some(Token::Assign)) {
-            self.errors.push(format!(
+            self.push_error_and_log(format!(
                 "Expected '=' after identifier, found: {:?}",
                 self.curr_token
             ));
@@ -98,90 +100,69 @@ impl Parser {
         while !matches!(self.curr_token, Some(Token::SemiColon))
             && !matches!(self.curr_token, Some(Token::EOF))
         {
-            info!("[Let] Skip expression");
             self.next_token();
         }
 
-        Some(Stmt::Let(LetStmt::new(let_token, identifier, NoImpl)))
+        Some(Stmt::Let(LetStmt::new(Token::Let, identifier, NoImpl)))
     }
 
     pub fn parse_return_stmt(&mut self) -> Option<Stmt> {
-        let return_token = self.curr_token.take().unwrap();
+        assert!(
+            matches!(self.curr_token, Some(Token::Return)),
+            "Expect self.curr_token to be Token::Return, found: {:?}",
+            self.curr_token
+        );
 
         self.next_token();
         while !matches!(self.curr_token, Some(Token::SemiColon))
             && !matches!(self.curr_token, Some(Token::EOF))
         {
-            info!("[Return] Skip expression");
             self.next_token();
         }
 
-        Some(Stmt::Return(ReturnStmt::new(return_token, NoImpl)))
+        Some(Stmt::Return(ReturnStmt::new(Token::Return, NoImpl)))
     }
 
     pub fn parse_expr_stmt(&mut self) -> Option<Stmt> {
-        let stmt = self.curr_token.take().and_then(|token| {
-            info!(
-                "[ExprStmt] Parse expression with current token: {:?}",
-                token
-            );
-            self.parse_expr(&token, Precedence::Lowest, "[ExprStmt]")
+        let stmt = self.curr_token.take_and_log().and_then(|token| {
+            self.parse_expr(&token, Precedence::Lowest)
                 .map(|exp| Stmt::Expression(ExprStmt::new(token, exp)))
         });
 
         if matches!(self.next_token, Some(Token::SemiColon)) {
-            info!("[ExprStmt], next is SemiColon, advance");
             self.next_token();
         }
 
         stmt
     }
 
-    fn parse_expr(&mut self, token: &Token, precedence: Precedence, tag: &str) -> Option<Expr> {
-        let tag = format!("{}[Expr]", &tag);
-        info!(
-            "{}, parse token: [{:?}], precedence: {:?}, curr[{:?}], next: [{:?}]",
-            &tag, token, precedence, self.curr_token, self.next_token
-        );
+    #[instrument(skip(self, token, precedence))]
+    fn parse_expr(&mut self, token: &Token, precedence: Precedence) -> Option<Expr> {
         let mut left_prefix = match token {
             Token::Identifier(_) => self.parse_ident(token),
             Token::Int(_) => self.parse_int_literal(token),
-            Token::Bang | Token::Minus => self.parse_prefix(token, tag.as_str()),
+            Token::Bang | Token::Minus => self.parse_prefix(token),
             _ => {
-                self.errors.push(format!(
+                self.push_error_and_log(format!(
                     "No expression parser implemented for token: {:?}",
                     token
                 ));
-                warn!(
-                    "{tag} No expression parser implemented for token: {:?}",
-                    token
-                );
-                None
+                return None;
             }
         };
         info!(
-            "{tag}, initial left_prefix: [{}], curr[{:?}], next: [{:?}]",
-            left_prefix
-                .as_ref()
-                .map(|expr| expr.to_string())
-                .unwrap_or("None".to_string()),
-            self.curr_token,
-            self.next_token
+            "Initial left prefix: [{}]",
+            self.opt_expr_to_string(left_prefix.as_ref())
         );
 
         while !matches!(self.next_token, Some(Token::SemiColon)) {
             if let Some(ref next_token) = self.next_token {
                 let next_precedence = Self::get_precedence(next_token);
-                info!(
-                    "{tag}, initial_token: {:?}, initial_precedence: {:?}, next_token: {:?}, next_precedence: {:?}",
-                    token, precedence, next_token, next_precedence
-                );
                 if precedence >= next_precedence {
-                    info!(
-                        "{tag} break as initial precedence {:?} >= next precedence {:?}",
-                        precedence, next_precedence
-                    );
+                    info!("Break, {precedence} >= {next_precedence}({next_token})");
                     break;
+                } else {
+                    info!("Cont, {precedence} < {next_precedence}({next_token})");
                 }
             }
 
@@ -196,27 +177,18 @@ impl Parser {
                 | Some(Token::NotEQ)
                 | Some(Token::LT)
                 | Some(Token::GT) => {
-                    let curr_token = self.curr_token.take().unwrap();
+                    let curr_token = self.curr_token.take()?;
                     if let Some(left) = left_prefix {
-                        left_prefix = self.parse_infix(curr_token, left, &tag);
+                        left_prefix = self.parse_infix(curr_token, left);
                         info!(
-                            "{tag}, updated left_prefix: [{:?}], curr[{:?}], next: [{:?}]",
-                            left_prefix
-                                .as_ref()
-                                .map(|expr| expr.to_string())
-                                .unwrap_or("None".to_string()),
-                            self.curr_token,
-                            self.next_token
+                            "Updated left_prefix: [{}]",
+                            self.opt_expr_to_string(left_prefix.as_ref())
                         );
                     } else {
-                        self.errors.push(format!(
-                            "Expected left expression for infix operator: {:?}",
+                        self.push_error_and_log(format!(
+                            "No left expression for infix operator: {:?}",
                             curr_token
                         ));
-                        warn!(
-                            "{tag} No left expression for infix operator: {:?}",
-                            curr_token
-                        );
                         return None;
                     }
                 }
@@ -224,14 +196,8 @@ impl Parser {
             }
         }
         info!(
-            "{} final left_prefix: [{:?}], curr[{:?}], next: [{:?}]",
-            tag,
-            left_prefix
-                .as_ref()
-                .map(|expr| expr.to_string())
-                .unwrap_or("None".to_string()),
-            self.curr_token,
-            self.next_token
+            "Final left_prefix: [{}]",
+            self.opt_expr_to_string(left_prefix.as_ref())
         );
         left_prefix
     }
@@ -256,34 +222,28 @@ impl Parser {
         }
     }
 
-    fn parse_prefix(&mut self, token: &Token, tag: &str) -> Option<Expr> {
-        let tag = format!("{}[Prefix]", tag);
+    #[instrument(skip(self, token))]
+    fn parse_prefix(&mut self, token: &Token) -> Option<Expr> {
         info!(
-            "{tag} token: {:?}, curr[{:?}], next[{:?}]",
+            "Token: {:?}, curr[{:?}], next[{:?}]",
             token, self.curr_token, self.next_token
         );
         self.next_token();
 
         self.curr_token
             .take()
-            .and_then(|expr_token| self.parse_expr(&expr_token, Prefix, &tag))
+            .and_then(|expr_token| self.parse_expr(&expr_token, Prefix))
             .map(|right_expr| Expr::Prefix(PrefixExpr::new(token.clone(), right_expr)))
     }
 
-    fn parse_infix(&mut self, token: Token, left: Expr, tag: &str) -> Option<Expr> {
-        let tag = format!("{}[Infix]", tag);
-        info!(
-            "{tag} token: {:?}, left_expr: {:?}, curr[{:?}], next[{:?}]",
-            token,
-            left.to_string(),
-            self.curr_token,
-            self.next_token
-        );
+    #[instrument(skip(self, token, left))]
+    fn parse_infix(&mut self, token: Token, left: Expr) -> Option<Expr> {
+        info!("Token: {token}, left_expr: {:?}", left.to_string());
         self.next_token();
 
         self.curr_token
             .take()
-            .and_then(|expr_token| self.parse_expr(&expr_token, Self::get_precedence(&token), &tag))
+            .and_then(|expr_token| self.parse_expr(&expr_token, Self::get_precedence(&token)))
             .map(|right_expr| Expr::Infix(InfixExpr::new(token, left, right_expr)))
     }
 
@@ -294,6 +254,35 @@ impl Parser {
             Token::GT | Token::LT => Precedence::LessGreater,
             Token::EQ | Token::NotEQ => Precedence::Equals,
             _ => Precedence::Lowest,
+        }
+    }
+
+    fn push_error_and_log(&mut self, message: String) {
+        warn!("Parser error: {}", &message);
+        self.errors.push(message);
+    }
+
+    fn opt_expr_to_string(&self, left_prefix: Option<&Expr>) -> String {
+        left_prefix
+            .map(|expr| expr.to_string())
+            .unwrap_or_else(|| "None".to_string())
+    }
+}
+
+pub trait TakeAndLogToken {
+    fn take_and_log(&mut self) -> Option<Token>;
+}
+impl TakeAndLogToken for Option<Token> {
+    fn take_and_log(&mut self) -> Option<Token> {
+        match self {
+            Some(tok) => {
+                info!("Token {:?} was taken", tok);
+                self.take()
+            }
+            None => {
+                warn!("No token available to take");
+                None
+            }
         }
     }
 }
@@ -446,7 +435,6 @@ mod test {
         let lexer = Lexer::new(input.to_string());
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
-        info!("Stmts: {:?}", program.stmts);
         info!("Errors: {:?}", parser.errors);
         program
     }
