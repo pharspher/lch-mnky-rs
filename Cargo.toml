@@ -2,6 +2,7 @@
 name = "lch-mnky-rs"
 version = "0.1.0"
 edition = "2024"
+cargo-features = ["edition2024"]
 
 [workspace]
 members = ["lexer", "parser", "repl"]
