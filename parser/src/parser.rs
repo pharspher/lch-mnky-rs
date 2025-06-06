@@ -42,7 +42,7 @@ impl Parser {
         let mut program = Program::new();
 
         while let Some(ref token) = self.curr_token {
-            info!("=====> {token}");
+            info!("Process token {token}");
 
             match token {
                 Token::EOF => break,
@@ -296,19 +296,18 @@ impl TakeAndLogToken for Option<Token> {
 
 #[cfg(test)]
 mod test {
-    use lexer::lexer::Lexer;
-    use lexer::token::Token;
-    use log::info;
-    #[cfg(feature = "serial")]
-    use serial_test::serial;
-
+    #[cfg(feature = "serial-test")]
+    use crate::ast::Expr::NoImpl;
     use crate::ast::Expr::NoImpl;
     use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
     use crate::init_logger;
     use crate::parser::Parser;
+    use lexer::lexer::Lexer;
+    use lexer::token::Token;
+    use log::info;
 
     #[test]
-    #[cfg_attr(feature = "serial", serial)]
+    #[cfg_attr(feature = "serial-test", serial)]
     fn test_let_stmt() {
         init_logger();
 
@@ -343,7 +342,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(feature = "serial", serial)]
+    #[cfg_attr(feature = "serial-test", serial)]
     fn test_return_stmt() {
         init_logger();
 
@@ -364,7 +363,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(feature = "serial", serial)]
+    #[cfg_attr(feature = "serial-test", serial)]
     fn test_ident_expr() {
         init_logger();
 
@@ -390,7 +389,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(feature = "serial", serial)]
+    #[cfg_attr(feature = "serial-test", serial)]
     fn test_int_literal() {
         init_logger();
 
@@ -416,7 +415,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(feature = "serial", serial)]
+    #[cfg_attr(feature = "serial-test", serial)]
     fn test_prefix_expr() {
         init_logger();
 
@@ -432,7 +431,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(feature = "serial", serial)]
+    #[cfg_attr(feature = "serial-test", serial)]
     fn test_infix_expr() {
         init_logger();
 
