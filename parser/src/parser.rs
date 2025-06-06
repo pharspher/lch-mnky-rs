@@ -1,7 +1,6 @@
 use lexer::lexer::Lexer;
 use lexer::token::Token;
-use log::{info, warn};
-use tracing::instrument;
+use log::warn;
 
 use crate::ast::Expr::NoImpl;
 use crate::ast::Precedence::Prefix;
@@ -9,6 +8,7 @@ use crate::ast::{
     Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Precedence, PrefixExpr, Program,
     ReturnStmt, Stmt,
 };
+use crate::{enter, info};
 
 #[derive(Debug)]
 pub struct Parser {
@@ -19,7 +19,8 @@ pub struct Parser {
 }
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
-        info!("[Program] Input: {}", lexer.input);
+        enter!("[Program]");
+        info!("Input: {}", lexer.input);
         let mut parser = Parser {
             lexer,
             curr_token: None,
@@ -37,6 +38,7 @@ impl Parser {
     }
 
     pub fn parse_program(&mut self) -> Program {
+        enter!("[Program]");
         let mut program = Program::new();
 
         while let Some(ref token) = self.curr_token {
@@ -71,6 +73,7 @@ impl Parser {
     }
 
     pub fn parse_let_stmt(&mut self) -> Option<Stmt> {
+        enter!("[LetStmt]");
         assert!(
             matches!(self.curr_token, Some(Token::Let)),
             "Expect self.curr_token to be Token::Let, found: {:?}",
@@ -107,6 +110,7 @@ impl Parser {
     }
 
     pub fn parse_return_stmt(&mut self) -> Option<Stmt> {
+        enter!("[ReturnStmt]");
         assert!(
             matches!(self.curr_token, Some(Token::Return)),
             "Expect self.curr_token to be Token::Return, found: {:?}",
@@ -124,6 +128,7 @@ impl Parser {
     }
 
     pub fn parse_expr_stmt(&mut self) -> Option<Stmt> {
+        enter!("[ExprStmt]");
         let stmt = self.curr_token.take_and_log().and_then(|token| {
             self.parse_expr(&token, Precedence::Lowest)
                 .map(|exp| Stmt::Expression(ExprStmt::new(token, exp)))
@@ -136,8 +141,8 @@ impl Parser {
         stmt
     }
 
-    #[instrument(skip(self, token, precedence))]
     fn parse_expr(&mut self, token: &Token, precedence: Precedence) -> Option<Expr> {
+        enter!("[Expr]");
         let mut left_prefix = match token {
             Token::Identifier(_) => self.parse_ident(token),
             Token::Int(_) => self.parse_int_literal(token),
@@ -203,10 +208,12 @@ impl Parser {
     }
 
     fn parse_ident(&self, token: &Token) -> Option<Expr> {
+        enter!("[Ident]");
         Some(Expr::Ident(IdentExpr::new(token.clone())))
     }
 
     fn parse_int_literal(&mut self, token: &Token) -> Option<Expr> {
+        enter!("[IntLiteral]");
         if let Token::Int(value_str) = token {
             value_str
                 .parse::<i64>()
@@ -222,8 +229,8 @@ impl Parser {
         }
     }
 
-    #[instrument(skip(self, token))]
     fn parse_prefix(&mut self, token: &Token) -> Option<Expr> {
+        enter!("[Prefix]");
         info!(
             "Token: {:?}, curr[{:?}], next[{:?}]",
             token, self.curr_token, self.next_token
@@ -236,8 +243,8 @@ impl Parser {
             .map(|right_expr| Expr::Prefix(PrefixExpr::new(token.clone(), right_expr)))
     }
 
-    #[instrument(skip(self, token, left))]
     fn parse_infix(&mut self, token: Token, left: Expr) -> Option<Expr> {
+        enter!("[Infix]");
         info!("Token: {token}, left_expr: {:?}", left.to_string());
         self.next_token();
 
@@ -289,10 +296,10 @@ impl TakeAndLogToken for Option<Token> {
 
 #[cfg(test)]
 mod test {
-    use log::info;
-
     use lexer::lexer::Lexer;
     use lexer::token::Token;
+    use log::info;
+    use serial_test::serial;
 
     use crate::ast::Expr::NoImpl;
     use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
@@ -300,6 +307,7 @@ mod test {
     use crate::parser::Parser;
 
     #[test]
+    #[serial]
     fn test_let_stmt() {
         init_logger();
 
@@ -334,6 +342,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_return_stmt() {
         init_logger();
 
@@ -354,6 +363,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_ident_expr() {
         init_logger();
 
@@ -379,6 +389,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_int_literal() {
         init_logger();
 
@@ -404,6 +415,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_prefix_expr() {
         init_logger();
 
@@ -419,16 +431,23 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_infix_expr() {
         init_logger();
 
-        let input = "a + b * c + d / e - f;";
+        let input = r"
+        a + b * c + d / e - f;
+        3 + 4 * 5 == 3 * 1 + 4 * 5;
+        ";
 
         let program = parse_program(input);
-        assert_eq!(program.stmts.len(), 1);
+        assert_eq!(program.stmts.len(), 2);
 
         let expect = "(((a) + ((b) * (c))) + ((d) / (e))) - (f);";
         assert_eq!(expect, program.stmts.first().unwrap().to_string());
+
+        let expect = "((3) + ((4) * (5))) == (((3) * (1)) + ((4) * (5)));";
+        assert_eq!(expect, program.stmts.get(1).unwrap().to_string());
     }
 
     fn parse_program(input: &str) -> Program {
