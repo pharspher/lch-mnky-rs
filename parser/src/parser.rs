@@ -1,7 +1,3 @@
-use lexer::lexer::Lexer;
-use lexer::token::Token;
-use log::warn;
-
 use crate::ast::Expr::NoImpl;
 use crate::ast::Precedence::Prefix;
 use crate::ast::{
@@ -9,6 +5,11 @@ use crate::ast::{
     ReturnStmt, Stmt,
 };
 use crate::{enter, info};
+use lexer::lexer::Lexer;
+use lexer::token::Token;
+use log::warn;
+#[cfg(feature = "serial-test")]
+use serial_test::serial;
 
 #[derive(Debug)]
 pub struct Parser {
@@ -294,10 +295,9 @@ impl TakeAndLogToken for Option<Token> {
     }
 }
 
+#[cfg_attr(feature = "serial-test", serial)]
 #[cfg(test)]
 mod test {
-    #[cfg(feature = "serial-test")]
-    use crate::ast::Expr::NoImpl;
     use crate::ast::Expr::NoImpl;
     use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
     use crate::init_logger;
@@ -307,7 +307,6 @@ mod test {
     use log::info;
 
     #[test]
-    #[cfg_attr(feature = "serial-test", serial)]
     fn test_let_stmt() {
         init_logger();
 
@@ -342,7 +341,6 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(feature = "serial-test", serial)]
     fn test_return_stmt() {
         init_logger();
 
@@ -363,7 +361,6 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(feature = "serial-test", serial)]
     fn test_ident_expr() {
         init_logger();
 
@@ -389,7 +386,6 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(feature = "serial-test", serial)]
     fn test_int_literal() {
         init_logger();
 
@@ -415,7 +411,6 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(feature = "serial-test", serial)]
     fn test_prefix_expr() {
         init_logger();
 
@@ -431,7 +426,6 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(feature = "serial-test", serial)]
     fn test_infix_expr() {
         init_logger();
 
