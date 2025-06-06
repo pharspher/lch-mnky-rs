@@ -422,13 +422,19 @@ mod test {
     fn test_infix_expr() {
         init_logger();
 
-        let input = "a + b * c + d / e - f;";
+        let input = r"
+        a + b * c + d / e - f;
+        3 + 4 * 5 == 3 * 1 + 4 * 5;
+        ";
 
         let program = parse_program(input);
-        assert_eq!(program.stmts.len(), 1);
+        assert_eq!(program.stmts.len(), 2);
 
         let expect = "(((a) + ((b) * (c))) + ((d) / (e))) - (f);";
         assert_eq!(expect, program.stmts.first().unwrap().to_string());
+
+        let expect = "((3) + ((4) * (5))) == (((3) * (1)) + ((4) * (5)));";
+        assert_eq!(expect, program.stmts.get(1).unwrap().to_string());
     }
 
     fn parse_program(input: &str) -> Program {
