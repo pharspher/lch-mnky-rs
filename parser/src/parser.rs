@@ -299,6 +299,7 @@ mod test {
     use lexer::lexer::Lexer;
     use lexer::token::Token;
     use log::info;
+    #[cfg(feature = "serial")]
     use serial_test::serial;
 
     use crate::ast::Expr::NoImpl;
@@ -307,7 +308,7 @@ mod test {
     use crate::parser::Parser;
 
     #[test]
-    #[serial]
+    #[cfg_attr(feature = "serial", serial)]
     fn test_let_stmt() {
         init_logger();
 
@@ -342,7 +343,7 @@ mod test {
     }
 
     #[test]
-    #[serial]
+    #[cfg_attr(feature = "serial", serial)]
     fn test_return_stmt() {
         init_logger();
 
@@ -363,7 +364,7 @@ mod test {
     }
 
     #[test]
-    #[serial]
+    #[cfg_attr(feature = "serial", serial)]
     fn test_ident_expr() {
         init_logger();
 
@@ -389,7 +390,7 @@ mod test {
     }
 
     #[test]
-    #[serial]
+    #[cfg_attr(feature = "serial", serial)]
     fn test_int_literal() {
         init_logger();
 
@@ -415,7 +416,7 @@ mod test {
     }
 
     #[test]
-    #[serial]
+    #[cfg_attr(feature = "serial", serial)]
     fn test_prefix_expr() {
         init_logger();
 
@@ -431,7 +432,7 @@ mod test {
     }
 
     #[test]
-    #[serial]
+    #[cfg_attr(feature = "serial", serial)]
     fn test_infix_expr() {
         init_logger();
 

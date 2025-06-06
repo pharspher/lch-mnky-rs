@@ -16,3 +16,4 @@ serial_test = "3.2.0"
 [features]
 default = ["indent-log"]
 indent-log = []
+serial = []
