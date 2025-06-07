@@ -1,8 +1,8 @@
 use crate::ast::Expr::NoImpl;
 use crate::ast::Precedence::Prefix;
 use crate::ast::{
-    Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Precedence, PrefixExpr, Program,
-    ReturnStmt, Stmt,
+    BoolLiteral, Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Precedence, PrefixExpr,
+    Program, ReturnStmt, Stmt,
 };
 use crate::{enter, info};
 use lexer::lexer::Lexer;
@@ -132,7 +132,7 @@ impl Parser {
         enter!("[ExprStmt]");
         let stmt = self.curr_token.take_and_log().and_then(|token| {
             self.parse_expr(&token, Precedence::Lowest)
-                .map(|exp| Stmt::Expression(ExprStmt::new(token, exp)))
+                .map(|exp| Stmt::Expression(ExprStmt::new(exp)))
         });
 
         if matches!(self.next_token, Some(Token::SemiColon)) {
@@ -147,6 +147,7 @@ impl Parser {
         let mut left_prefix = match token {
             Token::Identifier(_) => self.parse_ident(token),
             Token::Int(_) => self.parse_int_literal(token),
+            Token::True | Token::False => self.parse_bool_literal(token),
             Token::Bang | Token::Minus => self.parse_prefix(token),
             _ => {
                 self.push_error_and_log(format!(
@@ -230,6 +231,18 @@ impl Parser {
         }
     }
 
+    fn parse_bool_literal(&mut self, token: &Token) -> Option<Expr> {
+        enter!("[BoolLiteral]");
+        match token {
+            Token::True => Some(Expr::Bool(BoolLiteral::new(Token::True, true))),
+            Token::False => Some(Expr::Bool(BoolLiteral::new(Token::False, false))),
+            _ => {
+                self.push_error_and_log(format!("Expected boolean literal, found: {:?}", token));
+                None
+            }
+        }
+    }
+
     fn parse_prefix(&mut self, token: &Token) -> Option<Expr> {
         enter!("[Prefix]");
         info!(
@@ -299,7 +312,10 @@ impl TakeAndLogToken for Option<Token> {
 #[cfg(test)]
 mod test {
     use crate::ast::Expr::NoImpl;
-    use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
+    use crate::ast::{
+        BoolLiteral, Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Program,
+        ReturnStmt, Stmt,
+    };
     use crate::init_logger;
     use crate::parser::Parser;
     use lexer::lexer::Lexer;
@@ -378,10 +394,9 @@ mod test {
 
         assert_eq!(
             *expr_stmt.unwrap(),
-            ExprStmt::new(
-                Token::Identifier("foobar".to_string()),
-                Expr::Ident(IdentExpr::new(Token::Identifier("foobar".to_string())))
-            )
+            ExprStmt::new(Expr::Ident(IdentExpr::new(Token::Identifier(
+                "foobar".to_string()
+            ))))
         )
     }
 
@@ -403,10 +418,50 @@ mod test {
 
         assert_eq!(
             *expr_stmt.unwrap(),
-            ExprStmt::new(
-                Token::Int("5".to_string()),
-                Expr::Int(IntLiteral::new(Token::Int("5".to_string()), 5))
-            )
+            ExprStmt::new(Expr::Int(IntLiteral::new(Token::Int("5".to_string()), 5)))
+        );
+    }
+
+    #[test]
+    fn test_bool_literal() {
+        init_logger();
+
+        let input = r"
+            true;
+            true == false;
+            ";
+        let program = parse_program(input);
+        assert_eq!(program.stmts.len(), 2);
+
+        let first_stmt = program.stmts.first().unwrap();
+        assert_eq!(first_stmt.to_string(), "true;");
+        assert!(matches!(
+            first_stmt,
+            Stmt::Expression(ExprStmt {
+                expr: Expr::Bool(BoolLiteral {
+                    token: Token::True,
+                    value: true,
+                })
+            })
+        ));
+
+        let second_stmt = program.stmts.get(1).unwrap();
+        assert_eq!(second_stmt.to_string(), "(true) == (false);");
+        assert_eq!(
+            *second_stmt,
+            Stmt::Expression(ExprStmt {
+                expr: Expr::Infix(InfixExpr {
+                    left_expr: Box::new(Expr::Bool(BoolLiteral {
+                        token: Token::True,
+                        value: true,
+                    })),
+                    token: Token::EQ,
+                    right_expr: Box::new(Expr::Bool(BoolLiteral {
+                        token: Token::False,
+                        value: false,
+                    })),
+                }),
+            })
         );
     }
 

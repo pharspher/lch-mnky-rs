@@ -16,7 +16,7 @@ impl Program {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Stmt {
     Let(LetStmt),
     Return(ReturnStmt),
@@ -75,12 +75,11 @@ impl fmt::Display for ReturnStmt {
 
 #[derive(Debug, PartialEq)]
 pub struct ExprStmt {
-    token: Token,
-    expr: Expr,
+    pub expr: Expr,
 }
 impl ExprStmt {
-    pub fn new(token: Token, expr: Expr) -> Self {
-        Self { token, expr }
+    pub fn new(expr: Expr) -> Self {
+        Self { expr }
     }
 }
 impl fmt::Display for ExprStmt {
@@ -95,6 +94,7 @@ pub enum Expr {
     Int(IntLiteral),
     Prefix(PrefixExpr),
     Infix(InfixExpr),
+    Bool(BoolLiteral),
     NoImpl,
 }
 
@@ -105,6 +105,7 @@ impl fmt::Display for Expr {
             Expr::Int(int) => write!(f, "{}", int),
             Expr::Prefix(prefix) => write!(f, "{}", prefix),
             Expr::Infix(infix) => write!(f, "{}", infix),
+            Expr::Bool(bool) => write!(f, "{}", bool),
             Expr::NoImpl => write!(f, "NoImpl"),
         }
     }
@@ -150,6 +151,28 @@ impl fmt::Display for IntLiteral {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct BoolLiteral {
+    pub token: Token,
+    pub value: bool,
+}
+impl BoolLiteral {
+    pub fn new(token: Token, value: bool) -> Self {
+        Self { token, value }
+    }
+}
+impl fmt::Display for BoolLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.token {
+            Token::True => write!(f, "true"),
+            Token::False => write!(f, "false"),
+            _ => {
+                write!(f, "Unexpected token {:?} in BoolLiteral", self.token)
+            }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct PrefixExpr {
     token: Token,
     expr: Box<Expr>,
@@ -171,9 +194,9 @@ impl fmt::Display for PrefixExpr {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InfixExpr {
-    token: Token,
-    left_expr: Box<Expr>,
-    right_expr: Box<Expr>,
+    pub token: Token,
+    pub left_expr: Box<Expr>,
+    pub right_expr: Box<Expr>,
 }
 impl InfixExpr {
     pub fn new(token: Token, left_expr: Expr, right_expr: Expr) -> Self {
