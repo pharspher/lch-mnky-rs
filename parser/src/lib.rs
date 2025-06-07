@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::sync::Once;
 use tracing::Level;
-use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::FmtSubscriber;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 pub mod ast;
 pub mod parser;
