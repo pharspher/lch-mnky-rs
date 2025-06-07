@@ -103,16 +103,18 @@ impl Parser {
         }
 
         self.next_token();
-        let expr = if let Some(parsed) = self.parse_expr(
-            &self.curr_token.as_ref().unwrap().clone(),
-            Precedence::Lowest,
-        ) {
-            parsed
+        let expr = if let Some(token) = self.curr_token.as_ref() {
+            if let Some(parsed) = self.parse_expr(&token.clone(), Precedence::Lowest) {
+                parsed
+            } else {
+                self.push_error_and_log(format!(
+                    "Expected expression after '=', found: {:?}",
+                    self.curr_token
+                ));
+                return None;
+            }
         } else {
-            self.push_error_and_log(format!(
-                "Expected expression after '=', found: {:?}",
-                self.curr_token
-            ));
+            self.push_error_and_log("Expected a token but found None.".to_string());
             return None;
         };
 
