@@ -95,7 +95,6 @@ pub enum Expr {
     Prefix(PrefixExpr),
     Infix(InfixExpr),
     Bool(BoolLiteral),
-    NoImpl,
 }
 
 impl fmt::Display for Expr {
@@ -106,7 +105,6 @@ impl fmt::Display for Expr {
             Expr::Prefix(prefix) => write!(f, "{}", prefix),
             Expr::Infix(infix) => write!(f, "{}", infix),
             Expr::Bool(bool) => write!(f, "{}", bool),
-            Expr::NoImpl => write!(f, "NoImpl"),
         }
     }
 }

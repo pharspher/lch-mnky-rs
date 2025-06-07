@@ -1,4 +1,3 @@
-use crate::ast::Expr::NoImpl;
 use crate::ast::Precedence::Prefix;
 use crate::ast::{
     BoolLiteral, Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Precedence, PrefixExpr,
@@ -103,18 +102,17 @@ impl Parser {
         }
 
         self.next_token();
-        let expr = if let Some(token) = self.curr_token.as_ref() {
-            if let Some(parsed) = self.parse_expr(&token.clone(), Precedence::Lowest) {
-                parsed
-            } else {
-                self.push_error_and_log(format!(
-                    "Expected expression after '=', found: {:?}",
-                    self.curr_token
-                ));
-                return None;
-            }
+        let expr = if let Some(expr) = self
+            .curr_token
+            .take_and_log()
+            .and_then(|token| self.parse_expr(&token, Precedence::Lowest))
+        {
+            expr
         } else {
-            self.push_error_and_log("Expected a token but found None.".to_string());
+            self.push_error_and_log(format!(
+                "Expected expression after =, found: {:?}",
+                self.curr_token
+            ));
             return None;
         };
 
@@ -130,13 +128,21 @@ impl Parser {
         );
 
         self.next_token();
-        while !matches!(self.curr_token, Some(Token::SemiColon))
-            && !matches!(self.curr_token, Some(Token::EOF))
+        let expr = if let Some(expr) = self
+            .curr_token
+            .take_and_log()
+            .and_then(|token| self.parse_expr(&token, Precedence::Lowest))
         {
-            self.next_token();
-        }
+            expr
+        } else {
+            self.push_error_and_log(format!(
+                "Expected expression after return, found: {:?}",
+                self.curr_token
+            ));
+            return None;
+        };
 
-        Some(Stmt::Return(ReturnStmt::new(Token::Return, NoImpl)))
+        Some(Stmt::Return(ReturnStmt::new(Token::Return, expr)))
     }
 
     pub fn parse_expr_stmt(&mut self) -> Option<Stmt> {
@@ -323,7 +329,7 @@ impl TakeAndLogToken for Option<Token> {
 #[cfg_attr(feature = "serial-test", serial)]
 #[cfg(test)]
 mod test {
-    use crate::ast::Expr::{Int, NoImpl};
+    use crate::ast::Expr::Int;
     use crate::ast::{
         BoolLiteral, Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Program,
         ReturnStmt, Stmt,
@@ -383,20 +389,24 @@ mod test {
     fn test_return_stmt() {
         init_logger();
 
-        let input = "return x;";
+        let input = "return x + y;";
         let program = parse_program(input);
-
         assert_eq!(program.stmts.len(), 1);
 
-        assert_eq!(program.stmts.len(), 1);
-        let stmt = if let Some(Stmt::Return(return_stmt)) = program.stmts.first() {
-            Some(return_stmt)
-        } else {
-            None
-        };
+        let stmt = program.stmts.first();
         assert!(stmt.is_some());
 
-        assert_eq!(*stmt.unwrap(), ReturnStmt::new(Token::Return, NoImpl))
+        assert_eq!(
+            stmt.unwrap(),
+            &Stmt::Return(ReturnStmt::new(
+                Token::Return,
+                Expr::Infix(InfixExpr::new(
+                    Token::Plus,
+                    Expr::Ident(IdentExpr::new(Token::Identifier("x".to_string()))),
+                    Expr::Ident(IdentExpr::new(Token::Identifier("y".to_string()))),
+                )),
+            )),
+        );
     }
 
     #[test]
