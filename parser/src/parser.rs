@@ -72,7 +72,7 @@ impl Parser {
         program
     }
 
-    pub fn parse_let_stmt(&mut self) -> Option<Stmt> {
+    fn parse_let_stmt(&mut self) -> Option<Stmt> {
         enter!("[LetStmt]");
 
         assert!(
@@ -115,7 +115,7 @@ impl Parser {
         Some(Stmt::Let(LetStmt::new(Token::Let, identifier, expr)))
     }
 
-    pub fn parse_return_stmt(&mut self) -> Option<Stmt> {
+    fn parse_return_stmt(&mut self) -> Option<Stmt> {
         enter!("[ReturnStmt]");
         assert!(
             matches!(self.curr_token, Some(Token::Return)),
@@ -137,7 +137,7 @@ impl Parser {
         Some(Stmt::Return(ReturnStmt::new(Token::Return, expr)))
     }
 
-    pub fn parse_expr_stmt(&mut self) -> Option<Stmt> {
+    fn parse_expr_stmt(&mut self) -> Option<Stmt> {
         enter!("[ExprStmt]");
         let stmt = self
             .parse_expr(Precedence::Lowest)
