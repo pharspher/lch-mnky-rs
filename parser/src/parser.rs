@@ -165,6 +165,7 @@ impl Parser {
             Token::Int(_) => self.parse_int_literal(token),
             Token::True | Token::False => self.parse_bool_literal(token),
             Token::Bang | Token::Minus => self.parse_prefix(token),
+            Token::LeftParen => self.parse_group(token),
             _ => {
                 self.push_error_and_log(format!(
                     "No expression parser implemented for token: {:?}",
@@ -232,6 +233,7 @@ impl Parser {
 
     fn parse_int_literal(&mut self, token: &Token) -> Option<Expr> {
         enter!("[IntLiteral]");
+
         if let Token::Int(value_str) = token {
             value_str
                 .parse::<i64>()
@@ -249,6 +251,7 @@ impl Parser {
 
     fn parse_bool_literal(&mut self, token: &Token) -> Option<Expr> {
         enter!("[BoolLiteral]");
+
         match token {
             Token::True => Some(Expr::Bool(BoolLiteral::new(Token::True, true))),
             Token::False => Some(Expr::Bool(BoolLiteral::new(Token::False, false))),
@@ -261,21 +264,52 @@ impl Parser {
 
     fn parse_prefix(&mut self, token: &Token) -> Option<Expr> {
         enter!("[Prefix]");
+
         info!(
             "Token: {:?}, curr[{:?}], next[{:?}]",
             token, self.curr_token, self.next_token
         );
-        self.next_token();
 
+        self.next_token();
         self.parse_expr(Prefix)
             .map(|right_expr| Expr::Prefix(PrefixExpr::new(token.clone(), right_expr)))
     }
 
+    fn parse_group(&mut self, token: &Token) -> Option<Expr> {
+        enter!("[Group]");
+
+        info!(
+            "Token: {token}, curr[{:?}], next[{:?}]",
+            self.curr_token, self.next_token
+        );
+
+        self.next_token();
+        let expr = self.parse_expr(Precedence::Lowest);
+
+        info!(
+            "Parsed group expression: {}, curr: {:?}, next: {:?}",
+            expr.as_ref().unwrap(),
+            self.curr_token,
+            self.next_token
+        );
+        if !matches!(self.next_token, Some(Token::RightParen)) {
+            self.push_error_and_log(format!(
+                "Expected right parenthesis, found: {:?}",
+                self.curr_token
+            ));
+            return None;
+        }
+
+        self.next_token();
+        expr
+    }
+
     fn parse_infix(&mut self, token: Token, left: Expr) -> Option<Expr> {
         enter!("[Infix]");
-        info!("Token: {token}, left_expr: {:?}", left.to_string());
-        self.next_token();
 
+        info!("Token: {token}, left_expr: {:?}", left.to_string());
+
+        self.next_token();
         self.parse_expr(Self::get_precedence(&token))
             .map(|right_expr| Expr::Infix(InfixExpr::new(token, left, right_expr)))
     }
@@ -523,6 +557,25 @@ mod test {
         assert_eq!(expect, program.stmts.first().unwrap().to_string());
 
         let expect = "((3) + ((4) * (5))) == (((3) * (1)) + ((4) * (5)));";
+        assert_eq!(expect, program.stmts.get(1).unwrap().to_string());
+    }
+
+    #[test]
+    fn test_group_expr() {
+        init_logger();
+
+        let input = r"
+            a + b * (c + d) / e - f;
+            -(5 + 5);
+            ";
+
+        let program = parse_program(input);
+        assert_eq!(program.stmts.len(), 2);
+
+        let expect = "((a) + (((b) * ((c) + (d))) / (e))) - (f);";
+        assert_eq!(expect, program.stmts.first().unwrap().to_string());
+
+        let expect = "-((5) + (5));";
         assert_eq!(expect, program.stmts.get(1).unwrap().to_string());
     }
 
