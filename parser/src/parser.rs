@@ -1,8 +1,7 @@
-use crate::ast::Expr::NoImpl;
 use crate::ast::Precedence::Prefix;
 use crate::ast::{
-    Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Precedence, PrefixExpr, Program,
-    ReturnStmt, Stmt,
+    BoolLiteral, Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Precedence, PrefixExpr,
+    Program, ReturnStmt, Stmt,
 };
 use crate::{enter, info};
 use lexer::lexer::Lexer;
@@ -75,6 +74,7 @@ impl Parser {
 
     pub fn parse_let_stmt(&mut self) -> Option<Stmt> {
         enter!("[LetStmt]");
+
         assert!(
             matches!(self.curr_token, Some(Token::Let)),
             "Expect self.curr_token to be Token::Let, found: {:?}",
@@ -101,13 +101,18 @@ impl Parser {
             return None;
         }
 
-        while !matches!(self.curr_token, Some(Token::SemiColon))
-            && !matches!(self.curr_token, Some(Token::EOF))
-        {
-            self.next_token();
-        }
+        self.next_token();
+        let expr = if let Some(expr) = self.parse_expr(Precedence::Lowest) {
+            expr
+        } else {
+            self.push_error_and_log(format!(
+                "Expected expression after =, found: {:?}",
+                self.curr_token
+            ));
+            return None;
+        };
 
-        Some(Stmt::Let(LetStmt::new(Token::Let, identifier, NoImpl)))
+        Some(Stmt::Let(LetStmt::new(Token::Let, identifier, expr)))
     }
 
     pub fn parse_return_stmt(&mut self) -> Option<Stmt> {
@@ -119,21 +124,24 @@ impl Parser {
         );
 
         self.next_token();
-        while !matches!(self.curr_token, Some(Token::SemiColon))
-            && !matches!(self.curr_token, Some(Token::EOF))
-        {
-            self.next_token();
-        }
+        let expr = if let Some(expr) = self.parse_expr(Precedence::Lowest) {
+            expr
+        } else {
+            self.push_error_and_log(format!(
+                "Expected expression after return, found: {:?}",
+                self.curr_token
+            ));
+            return None;
+        };
 
-        Some(Stmt::Return(ReturnStmt::new(Token::Return, NoImpl)))
+        Some(Stmt::Return(ReturnStmt::new(Token::Return, expr)))
     }
 
     pub fn parse_expr_stmt(&mut self) -> Option<Stmt> {
         enter!("[ExprStmt]");
-        let stmt = self.curr_token.take_and_log().and_then(|token| {
-            self.parse_expr(&token, Precedence::Lowest)
-                .map(|exp| Stmt::Expression(ExprStmt::new(token, exp)))
-        });
+        let stmt = self
+            .parse_expr(Precedence::Lowest)
+            .map(|exp| Stmt::Expression(ExprStmt::new(exp)));
 
         if matches!(self.next_token, Some(Token::SemiColon)) {
             self.next_token();
@@ -142,11 +150,20 @@ impl Parser {
         stmt
     }
 
-    fn parse_expr(&mut self, token: &Token, precedence: Precedence) -> Option<Expr> {
+    fn parse_expr(&mut self, precedence: Precedence) -> Option<Expr> {
         enter!("[Expr]");
+
+        let token = &if let Some(t) = self.curr_token.take_and_log() {
+            t
+        } else {
+            self.push_error_and_log("No current token available to parse expression".to_string());
+            return None;
+        };
+
         let mut left_prefix = match token {
             Token::Identifier(_) => self.parse_ident(token),
             Token::Int(_) => self.parse_int_literal(token),
+            Token::True | Token::False => self.parse_bool_literal(token),
             Token::Bang | Token::Minus => self.parse_prefix(token),
             _ => {
                 self.push_error_and_log(format!(
@@ -230,6 +247,18 @@ impl Parser {
         }
     }
 
+    fn parse_bool_literal(&mut self, token: &Token) -> Option<Expr> {
+        enter!("[BoolLiteral]");
+        match token {
+            Token::True => Some(Expr::Bool(BoolLiteral::new(Token::True, true))),
+            Token::False => Some(Expr::Bool(BoolLiteral::new(Token::False, false))),
+            _ => {
+                self.push_error_and_log(format!("Expected boolean literal, found: {:?}", token));
+                None
+            }
+        }
+    }
+
     fn parse_prefix(&mut self, token: &Token) -> Option<Expr> {
         enter!("[Prefix]");
         info!(
@@ -238,9 +267,7 @@ impl Parser {
         );
         self.next_token();
 
-        self.curr_token
-            .take()
-            .and_then(|expr_token| self.parse_expr(&expr_token, Prefix))
+        self.parse_expr(Prefix)
             .map(|right_expr| Expr::Prefix(PrefixExpr::new(token.clone(), right_expr)))
     }
 
@@ -249,9 +276,7 @@ impl Parser {
         info!("Token: {token}, left_expr: {:?}", left.to_string());
         self.next_token();
 
-        self.curr_token
-            .take()
-            .and_then(|expr_token| self.parse_expr(&expr_token, Self::get_precedence(&token)))
+        self.parse_expr(Self::get_precedence(&token))
             .map(|right_expr| Expr::Infix(InfixExpr::new(token, left, right_expr)))
     }
 
@@ -298,8 +323,11 @@ impl TakeAndLogToken for Option<Token> {
 #[cfg_attr(feature = "serial-test", serial)]
 #[cfg(test)]
 mod test {
-    use crate::ast::Expr::NoImpl;
-    use crate::ast::{Expr, ExprStmt, IdentExpr, IntLiteral, LetStmt, Program, ReturnStmt, Stmt};
+    use crate::ast::Expr::Int;
+    use crate::ast::{
+        BoolLiteral, Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Program,
+        ReturnStmt, Stmt,
+    };
     use crate::init_logger;
     use crate::parser::Parser;
     use lexer::lexer::Lexer;
@@ -316,16 +344,27 @@ mod test {
             let result = x + y;";
         let program = parse_program(input);
 
-        let expected_ident: Vec<LetStmt> = ["x", "y", "result"]
-            .iter()
-            .map(|identifier_name| {
-                LetStmt::new(
-                    Token::Let,
-                    IdentExpr::new(Token::Identifier(identifier_name.to_string())),
-                    NoImpl,
-                )
-            })
-            .collect();
+        let expected_ident = vec![
+            LetStmt::new(
+                Token::Let,
+                IdentExpr::new(Token::Identifier("x".to_string())),
+                Int(IntLiteral::new(Token::Int("5".to_string()), 5)),
+            ),
+            LetStmt::new(
+                Token::Let,
+                IdentExpr::new(Token::Identifier("y".to_string())),
+                Int(IntLiteral::new(Token::Int("10".to_string()), 10)),
+            ),
+            LetStmt::new(
+                Token::Let,
+                IdentExpr::new(Token::Identifier("result".to_string())),
+                Expr::Infix(InfixExpr::new(
+                    Token::Plus,
+                    Expr::Ident(IdentExpr::new(Token::Identifier("x".to_string()))),
+                    Expr::Ident(IdentExpr::new(Token::Identifier("y".to_string()))),
+                )),
+            ),
+        ];
 
         assert_eq!(program.stmts.len(), 3);
 
@@ -344,20 +383,24 @@ mod test {
     fn test_return_stmt() {
         init_logger();
 
-        let input = "return x;";
+        let input = "return x + y;";
         let program = parse_program(input);
-
         assert_eq!(program.stmts.len(), 1);
 
-        assert_eq!(program.stmts.len(), 1);
-        let stmt = if let Some(Stmt::Return(return_stmt)) = program.stmts.first() {
-            Some(return_stmt)
-        } else {
-            None
-        };
+        let stmt = program.stmts.first();
         assert!(stmt.is_some());
 
-        assert_eq!(*stmt.unwrap(), ReturnStmt::new(Token::Return, NoImpl))
+        assert_eq!(
+            stmt.unwrap(),
+            &Stmt::Return(ReturnStmt::new(
+                Token::Return,
+                Expr::Infix(InfixExpr::new(
+                    Token::Plus,
+                    Expr::Ident(IdentExpr::new(Token::Identifier("x".to_string()))),
+                    Expr::Ident(IdentExpr::new(Token::Identifier("y".to_string()))),
+                )),
+            )),
+        );
     }
 
     #[test]
@@ -378,10 +421,9 @@ mod test {
 
         assert_eq!(
             *expr_stmt.unwrap(),
-            ExprStmt::new(
-                Token::Identifier("foobar".to_string()),
-                Expr::Ident(IdentExpr::new(Token::Identifier("foobar".to_string())))
-            )
+            ExprStmt::new(Expr::Ident(IdentExpr::new(Token::Identifier(
+                "foobar".to_string()
+            ))))
         )
     }
 
@@ -403,10 +445,50 @@ mod test {
 
         assert_eq!(
             *expr_stmt.unwrap(),
-            ExprStmt::new(
-                Token::Int("5".to_string()),
-                Expr::Int(IntLiteral::new(Token::Int("5".to_string()), 5))
-            )
+            ExprStmt::new(Int(IntLiteral::new(Token::Int("5".to_string()), 5)))
+        );
+    }
+
+    #[test]
+    fn test_bool_literal() {
+        init_logger();
+
+        let input = r"
+            true;
+            true == false;
+            ";
+        let program = parse_program(input);
+        assert_eq!(program.stmts.len(), 2);
+
+        let first_stmt = program.stmts.first().unwrap();
+        assert_eq!(first_stmt.to_string(), "true;");
+        assert!(matches!(
+            first_stmt,
+            Stmt::Expression(ExprStmt {
+                expr: Expr::Bool(BoolLiteral {
+                    token: Token::True,
+                    value: true,
+                })
+            })
+        ));
+
+        let second_stmt = program.stmts.get(1).unwrap();
+        assert_eq!(second_stmt.to_string(), "(true) == (false);");
+        assert_eq!(
+            *second_stmt,
+            Stmt::Expression(ExprStmt {
+                expr: Expr::Infix(InfixExpr {
+                    left_expr: Box::new(Expr::Bool(BoolLiteral {
+                        token: Token::True,
+                        value: true,
+                    })),
+                    token: Token::EQ,
+                    right_expr: Box::new(Expr::Bool(BoolLiteral {
+                        token: Token::False,
+                        value: false,
+                    })),
+                }),
+            })
         );
     }
 
