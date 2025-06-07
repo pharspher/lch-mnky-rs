@@ -75,6 +75,7 @@ impl Parser {
 
     pub fn parse_let_stmt(&mut self) -> Option<Stmt> {
         enter!("[LetStmt]");
+
         assert!(
             matches!(self.curr_token, Some(Token::Let)),
             "Expect self.curr_token to be Token::Let, found: {:?}",
@@ -101,13 +102,21 @@ impl Parser {
             return None;
         }
 
-        while !matches!(self.curr_token, Some(Token::SemiColon))
-            && !matches!(self.curr_token, Some(Token::EOF))
-        {
-            self.next_token();
-        }
+        self.next_token();
+        let expr = if let Some(parsed) = self.parse_expr(
+            &self.curr_token.as_ref().unwrap().clone(),
+            Precedence::Lowest,
+        ) {
+            parsed
+        } else {
+            self.push_error_and_log(format!(
+                "Expected expression after '=', found: {:?}",
+                self.curr_token
+            ));
+            return None;
+        };
 
-        Some(Stmt::Let(LetStmt::new(Token::Let, identifier, NoImpl)))
+        Some(Stmt::Let(LetStmt::new(Token::Let, identifier, expr)))
     }
 
     pub fn parse_return_stmt(&mut self) -> Option<Stmt> {
@@ -144,6 +153,7 @@ impl Parser {
 
     fn parse_expr(&mut self, token: &Token, precedence: Precedence) -> Option<Expr> {
         enter!("[Expr]");
+
         let mut left_prefix = match token {
             Token::Identifier(_) => self.parse_ident(token),
             Token::Int(_) => self.parse_int_literal(token),
@@ -311,7 +321,7 @@ impl TakeAndLogToken for Option<Token> {
 #[cfg_attr(feature = "serial-test", serial)]
 #[cfg(test)]
 mod test {
-    use crate::ast::Expr::NoImpl;
+    use crate::ast::Expr::{Int, NoImpl};
     use crate::ast::{
         BoolLiteral, Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Program,
         ReturnStmt, Stmt,
@@ -332,16 +342,27 @@ mod test {
             let result = x + y;";
         let program = parse_program(input);
 
-        let expected_ident: Vec<LetStmt> = ["x", "y", "result"]
-            .iter()
-            .map(|identifier_name| {
-                LetStmt::new(
-                    Token::Let,
-                    IdentExpr::new(Token::Identifier(identifier_name.to_string())),
-                    NoImpl,
-                )
-            })
-            .collect();
+        let expected_ident = vec![
+            LetStmt::new(
+                Token::Let,
+                IdentExpr::new(Token::Identifier("x".to_string())),
+                Int(IntLiteral::new(Token::Int("5".to_string()), 5)),
+            ),
+            LetStmt::new(
+                Token::Let,
+                IdentExpr::new(Token::Identifier("y".to_string())),
+                Int(IntLiteral::new(Token::Int("10".to_string()), 10)),
+            ),
+            LetStmt::new(
+                Token::Let,
+                IdentExpr::new(Token::Identifier("result".to_string())),
+                Expr::Infix(InfixExpr::new(
+                    Token::Plus,
+                    Expr::Ident(IdentExpr::new(Token::Identifier("x".to_string()))),
+                    Expr::Ident(IdentExpr::new(Token::Identifier("y".to_string()))),
+                )),
+            ),
+        ];
 
         assert_eq!(program.stmts.len(), 3);
 
