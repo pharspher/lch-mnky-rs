@@ -102,11 +102,7 @@ impl Parser {
         }
 
         self.next_token();
-        let expr = if let Some(expr) = self
-            .curr_token
-            .take_and_log()
-            .and_then(|token| self.parse_expr(&token, Precedence::Lowest))
-        {
+        let expr = if let Some(expr) = self.parse_expr(Precedence::Lowest) {
             expr
         } else {
             self.push_error_and_log(format!(
@@ -128,11 +124,7 @@ impl Parser {
         );
 
         self.next_token();
-        let expr = if let Some(expr) = self
-            .curr_token
-            .take_and_log()
-            .and_then(|token| self.parse_expr(&token, Precedence::Lowest))
-        {
+        let expr = if let Some(expr) = self.parse_expr(Precedence::Lowest) {
             expr
         } else {
             self.push_error_and_log(format!(
@@ -147,10 +139,9 @@ impl Parser {
 
     pub fn parse_expr_stmt(&mut self) -> Option<Stmt> {
         enter!("[ExprStmt]");
-        let stmt = self.curr_token.take_and_log().and_then(|token| {
-            self.parse_expr(&token, Precedence::Lowest)
-                .map(|exp| Stmt::Expression(ExprStmt::new(exp)))
-        });
+        let stmt = self
+            .parse_expr(Precedence::Lowest)
+            .map(|exp| Stmt::Expression(ExprStmt::new(exp)));
 
         if matches!(self.next_token, Some(Token::SemiColon)) {
             self.next_token();
@@ -159,8 +150,15 @@ impl Parser {
         stmt
     }
 
-    fn parse_expr(&mut self, token: &Token, precedence: Precedence) -> Option<Expr> {
+    fn parse_expr(&mut self, precedence: Precedence) -> Option<Expr> {
         enter!("[Expr]");
+
+        let token = &if let Some(t) = self.curr_token.take_and_log() {
+            t
+        } else {
+            self.push_error_and_log("No current token available to parse expression".to_string());
+            return None;
+        };
 
         let mut left_prefix = match token {
             Token::Identifier(_) => self.parse_ident(token),
@@ -269,9 +267,7 @@ impl Parser {
         );
         self.next_token();
 
-        self.curr_token
-            .take()
-            .and_then(|expr_token| self.parse_expr(&expr_token, Prefix))
+        self.parse_expr(Prefix)
             .map(|right_expr| Expr::Prefix(PrefixExpr::new(token.clone(), right_expr)))
     }
 
@@ -280,9 +276,7 @@ impl Parser {
         info!("Token: {token}, left_expr: {:?}", left.to_string());
         self.next_token();
 
-        self.curr_token
-            .take()
-            .and_then(|expr_token| self.parse_expr(&expr_token, Self::get_precedence(&token)))
+        self.parse_expr(Self::get_precedence(&token))
             .map(|right_expr| Expr::Infix(InfixExpr::new(token, left, right_expr)))
     }
 
@@ -451,7 +445,7 @@ mod test {
 
         assert_eq!(
             *expr_stmt.unwrap(),
-            ExprStmt::new(Expr::Int(IntLiteral::new(Token::Int("5".to_string()), 5)))
+            ExprStmt::new(Int(IntLiteral::new(Token::Int("5".to_string()), 5)))
         );
     }
 
