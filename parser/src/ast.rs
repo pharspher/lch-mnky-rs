@@ -16,7 +16,7 @@ impl Program {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
     Let(LetStmt),
     Return(ReturnStmt),
@@ -32,7 +32,7 @@ impl fmt::Display for Stmt {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct LetStmt {
     token: Token,
     name: IdentExpr,
@@ -57,7 +57,7 @@ impl fmt::Display for LetStmt {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ReturnStmt {
     token: Token,
     expr: Expr,
@@ -73,7 +73,7 @@ impl fmt::Display for ReturnStmt {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ExprStmt {
     pub expr: Expr,
 }
@@ -95,8 +95,8 @@ pub enum Expr {
     Prefix(PrefixExpr),
     Infix(InfixExpr),
     Bool(BoolLiteral),
+    If(IfExpr),
 }
-
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -105,6 +105,7 @@ impl fmt::Display for Expr {
             Expr::Prefix(prefix) => write!(f, "{}", prefix),
             Expr::Infix(infix) => write!(f, "{}", infix),
             Expr::Bool(bool) => write!(f, "{}", bool),
+            Expr::If(if_expr) => write!(f, "{}", if_expr),
         }
     }
 }
@@ -167,6 +168,49 @@ impl fmt::Display for BoolLiteral {
                 write!(f, "Unexpected token {:?} in BoolLiteral", self.token)
             }
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct IfExpr {
+    pub token: Token,
+    pub condition: Box<Expr>,
+    pub consequence: Box<BlockStmt>,
+    pub alternative: Option<Box<BlockStmt>>,
+}
+impl IfExpr {
+    pub fn new(condition: Expr, consequence: BlockStmt, alternative: Option<BlockStmt>) -> Self {
+        Self {
+            token: Token::If,
+            condition: Box::new(condition),
+            consequence: Box::new(consequence),
+            alternative: alternative.map(Box::new),
+        }
+    }
+}
+impl fmt::Display for IfExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut result = format!("if ({}) {}", self.condition, self.consequence.as_ref());
+        if let Some(alternative) = &self.alternative {
+            result.push_str(&format!(" else {}", alternative.as_ref()));
+        }
+        write!(f, "{}", result)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct BlockStmt {
+    pub stmts: Vec<Stmt>,
+}
+impl BlockStmt {
+    pub fn new(stmts: Vec<Stmt>) -> Self {
+        Self { stmts }
+    }
+}
+impl fmt::Display for BlockStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let stmts_str: Vec<String> = self.stmts.iter().map(|s| s.to_string()).collect();
+        write!(f, "{{{}}}", stmts_str.join("\n"))
     }
 }
 
@@ -237,15 +281,18 @@ pub enum Precedence {
 mod display_tests {
     use lexer::token::Token;
 
-    use crate::ast::{Expr, IdentExpr, InfixExpr, IntLiteral, PrefixExpr};
+    use crate::ast::{
+        BlockStmt, Expr, ExprStmt, IdentExpr, IfExpr, InfixExpr, PrefixExpr, Stmt,
+    };
     use crate::init_logger;
+    use crate::test_utils::{new_bool, new_ident, new_int};
 
     #[test]
     fn test_expr_display() {
         init_logger();
 
         // TODO: IntLiteral can only accept Token::Int, try make it explicit
-        let int_expr = Expr::Int(IntLiteral::new(Token::Int("5".to_string()), 5));
+        let int_expr = new_int(5);
         assert_eq!(int_expr.to_string(), "5");
 
         // TODO: IdentExpr can only accept Token::Identifier, try make it explicit
@@ -276,5 +323,20 @@ mod display_tests {
             infix_expr.to_string(),
             "((!(5)) + (-(x))) * ((!(5)) + (-(x)))"
         );
+
+        let true_expr = new_bool(true);
+        assert_eq!(true_expr.to_string(), "true");
+
+        let false_expr = new_bool(false);
+        assert_eq!(false_expr.to_string(), "false");
+
+        let if_expr = Expr::If(IfExpr::new(
+            Expr::Infix(InfixExpr::new(Token::LT, new_ident("x"), new_ident("y"))),
+            BlockStmt::new(vec![Stmt::Expression(ExprStmt::new(int_expr.clone()))]),
+            Some(BlockStmt::new(vec![Stmt::Expression(ExprStmt::new(
+                ident_expr.clone(),
+            ))])),
+        ));
+        assert_eq!(if_expr.to_string(), "if ((x) < (y)) {5;} else {x;}");
     }
 }

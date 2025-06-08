@@ -1,11 +1,13 @@
 use std::cell::RefCell;
 use std::sync::Once;
 use tracing::Level;
-use tracing_subscriber::FmtSubscriber;
 use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::FmtSubscriber;
 
 pub mod ast;
 pub mod parser;
+#[cfg(test)]
+mod test_utils;
 
 static INIT: Once = Once::new();
 pub fn init_logger() {

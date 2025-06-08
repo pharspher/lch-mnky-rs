@@ -364,6 +364,7 @@ mod test {
     };
     use crate::init_logger;
     use crate::parser::Parser;
+    use crate::test_utils::new_ident;
     use lexer::lexer::Lexer;
     use lexer::token::Token;
     use log::info;
@@ -392,11 +393,7 @@ mod test {
             LetStmt::new(
                 Token::Let,
                 IdentExpr::new(Token::Identifier("result".to_string())),
-                Expr::Infix(InfixExpr::new(
-                    Token::Plus,
-                    Expr::Ident(IdentExpr::new(Token::Identifier("x".to_string()))),
-                    Expr::Ident(IdentExpr::new(Token::Identifier("y".to_string()))),
-                )),
+                Expr::Infix(InfixExpr::new(Token::Plus, new_ident("x"), new_ident("y"))),
             ),
         ];
 
