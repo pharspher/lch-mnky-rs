@@ -295,7 +295,7 @@ impl Parser {
         if !matches!(self.next_token, Some(Token::RightParen)) {
             self.push_error_and_log(format!(
                 "Expected right parenthesis, found: {:?}",
-                self.curr_token
+                self.next_token
             ));
             return None;
         }
