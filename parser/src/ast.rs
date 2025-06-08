@@ -175,24 +175,24 @@ impl fmt::Display for BoolLiteral {
 pub struct IfExpr {
     pub token: Token,
     pub condition: Box<Expr>,
-    pub consequence: Box<BlockStmt>,
-    pub alternative: Option<Box<BlockStmt>>,
+    pub consequence: BlockStmt,
+    pub alternative: Option<BlockStmt>,
 }
 impl IfExpr {
     pub fn new(condition: Expr, consequence: BlockStmt, alternative: Option<BlockStmt>) -> Self {
         Self {
             token: Token::If,
             condition: Box::new(condition),
-            consequence: Box::new(consequence),
-            alternative: alternative.map(Box::new),
+            consequence,
+            alternative,
         }
     }
 }
 impl fmt::Display for IfExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut result = format!("if ({}) {}", self.condition, self.consequence.as_ref());
+        let mut result = format!("if ({}) {}", self.condition, self.consequence);
         if let Some(alternative) = &self.alternative {
-            result.push_str(&format!(" else {}", alternative.as_ref()));
+            result.push_str(&format!(" else {}", alternative));
         }
         write!(f, "{}", result)
     }
