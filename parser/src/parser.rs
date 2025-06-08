@@ -279,8 +279,8 @@ impl Parser {
         enter!("[Group]");
 
         info!(
-            "Token: {token}, curr[{:?}], next[{:?}]",
-            self.curr_token, self.next_token
+            "Token: {:?}, curr[{:?}], next[{:?}]",
+            token, self.curr_token, self.next_token
         );
 
         self.next_token();
