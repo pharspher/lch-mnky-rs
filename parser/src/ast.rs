@@ -281,11 +281,12 @@ pub enum Precedence {
 mod display_tests {
     use lexer::token::Token;
 
-    use crate::ast::{
-        BlockStmt, Expr, ExprStmt, IdentExpr, IfExpr, InfixExpr, PrefixExpr, Stmt,
-    };
+    use crate::ast::{BlockStmt, Expr, ExprStmt, IfExpr, Stmt};
     use crate::init_logger;
-    use crate::test_utils::{new_bool, new_ident, new_int};
+    use crate::test_utils::{
+        new_bang_prefix_expr, new_bool, new_ident_expr, new_infix_expr, new_int,
+        new_minus_prefix_expr,
+    };
 
     #[test]
     fn test_expr_display() {
@@ -296,29 +297,25 @@ mod display_tests {
         assert_eq!(int_expr.to_string(), "5");
 
         // TODO: IdentExpr can only accept Token::Identifier, try make it explicit
-        let ident_expr = Expr::Ident(IdentExpr::new(Token::Identifier("x".to_string())));
+        let ident_expr = new_ident_expr("x");
         assert_eq!(ident_expr.to_string(), "x");
 
         // TODO: PrefixExpr can only accept Token::Bang or Token::Minus, try make it explicit
-        let bang_prefix_expr = Expr::Prefix(PrefixExpr::new(Token::Bang, int_expr.clone()));
+        let bang_prefix_expr = new_bang_prefix_expr(int_expr.clone());
         assert_eq!(bang_prefix_expr.to_string(), "!(5)");
 
-        let minus_prefix_expr = Expr::Prefix(PrefixExpr::new(Token::Minus, ident_expr.clone()));
+        let minus_prefix_expr = new_minus_prefix_expr(ident_expr.clone());
         assert_eq!(minus_prefix_expr.to_string(), "-(x)");
 
         // TODO: InfixExpr can only accept Token::Plus, Token::Minus, etc., try make it explicit
-        let infix_expr = Expr::Infix(InfixExpr::new(
-            Token::Plus,
+        let infix_expr = new_infix_expr(
             bang_prefix_expr.clone(),
+            Token::Plus,
             minus_prefix_expr.clone(),
-        ));
+        );
         assert_eq!(infix_expr.to_string(), "(!(5)) + (-(x))");
 
-        let infix_expr = Expr::Infix(InfixExpr::new(
-            Token::Asterisk,
-            infix_expr.clone(),
-            infix_expr.clone(),
-        ));
+        let infix_expr = new_infix_expr(infix_expr.clone(), Token::Asterisk, infix_expr.clone());
         assert_eq!(
             infix_expr.to_string(),
             "((!(5)) + (-(x))) * ((!(5)) + (-(x)))"
@@ -331,7 +328,7 @@ mod display_tests {
         assert_eq!(false_expr.to_string(), "false");
 
         let if_expr = Expr::If(IfExpr::new(
-            Expr::Infix(InfixExpr::new(Token::LT, new_ident("x"), new_ident("y"))),
+            new_infix_expr(new_ident_expr("x"), Token::LT, new_ident_expr("y")),
             BlockStmt::new(vec![Stmt::Expression(ExprStmt::new(int_expr.clone()))]),
             Some(BlockStmt::new(vec![Stmt::Expression(ExprStmt::new(
                 ident_expr.clone(),

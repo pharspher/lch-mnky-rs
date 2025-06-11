@@ -357,14 +357,13 @@ impl TakeAndLogToken for Option<Token> {
 #[cfg_attr(feature = "serial-test", serial)]
 #[cfg(test)]
 mod test {
-    use crate::ast::Expr::Int;
-    use crate::ast::{
-        BoolLiteral, Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, Program,
-        ReturnStmt, Stmt,
-    };
+    use crate::ast::{ExprStmt, Program, Stmt};
     use crate::init_logger;
     use crate::parser::Parser;
-    use crate::test_utils::new_ident;
+    use crate::test_utils::{
+        new_bool, new_expr_stmt, new_ident, new_ident_expr, new_infix_expr, new_int, new_let_stmt,
+        new_ret_stmt,
+    };
     use lexer::lexer::Lexer;
     use lexer::token::Token;
     use log::info;
@@ -380,20 +379,11 @@ mod test {
         let program = parse_program(input);
 
         let expected_ident = vec![
-            LetStmt::new(
-                Token::Let,
-                IdentExpr::new(Token::Identifier("x".to_string())),
-                Int(IntLiteral::new(Token::Int("5".to_string()), 5)),
-            ),
-            LetStmt::new(
-                Token::Let,
-                IdentExpr::new(Token::Identifier("y".to_string())),
-                Int(IntLiteral::new(Token::Int("10".to_string()), 10)),
-            ),
-            LetStmt::new(
-                Token::Let,
-                IdentExpr::new(Token::Identifier("result".to_string())),
-                Expr::Infix(InfixExpr::new(Token::Plus, new_ident("x"), new_ident("y"))),
+            new_let_stmt(new_ident("x"), new_int(5)),
+            new_let_stmt(new_ident("y"), new_int(10)),
+            new_let_stmt(
+                new_ident("result"),
+                new_infix_expr(new_ident_expr("x"), Token::Plus, new_ident_expr("y")),
             ),
         ];
 
@@ -423,13 +413,10 @@ mod test {
 
         assert_eq!(
             stmt.unwrap(),
-            &Stmt::Return(ReturnStmt::new(
-                Token::Return,
-                Expr::Infix(InfixExpr::new(
-                    Token::Plus,
-                    Expr::Ident(IdentExpr::new(Token::Identifier("x".to_string()))),
-                    Expr::Ident(IdentExpr::new(Token::Identifier("y".to_string()))),
-                )),
+            &new_ret_stmt(new_infix_expr(
+                new_ident_expr("x"),
+                Token::Plus,
+                new_ident_expr("y")
             )),
         );
     }
@@ -450,12 +437,7 @@ mod test {
         };
         assert!(expr_stmt.is_some());
 
-        assert_eq!(
-            *expr_stmt.unwrap(),
-            ExprStmt::new(Expr::Ident(IdentExpr::new(Token::Identifier(
-                "foobar".to_string()
-            ))))
-        )
+        assert_eq!(*expr_stmt.unwrap(), ExprStmt::new(new_ident_expr("foobar")))
     }
 
     #[test]
@@ -474,10 +456,7 @@ mod test {
         };
         assert!(expr_stmt.is_some());
 
-        assert_eq!(
-            *expr_stmt.unwrap(),
-            ExprStmt::new(Int(IntLiteral::new(Token::Int("5".to_string()), 5)))
-        );
+        assert_eq!(*expr_stmt.unwrap(), ExprStmt::new(new_int(5)));
     }
 
     #[test]
@@ -493,33 +472,13 @@ mod test {
 
         let first_stmt = program.stmts.first().unwrap();
         assert_eq!(first_stmt.to_string(), "true;");
-        assert!(matches!(
-            first_stmt,
-            Stmt::Expression(ExprStmt {
-                expr: Expr::Bool(BoolLiteral {
-                    token: Token::True,
-                    value: true,
-                })
-            })
-        ));
+        assert_eq!(*first_stmt, new_expr_stmt(new_bool(true)));
 
         let second_stmt = program.stmts.get(1).unwrap();
         assert_eq!(second_stmt.to_string(), "(true) == (false);");
         assert_eq!(
             *second_stmt,
-            Stmt::Expression(ExprStmt {
-                expr: Expr::Infix(InfixExpr {
-                    left_expr: Box::new(Expr::Bool(BoolLiteral {
-                        token: Token::True,
-                        value: true,
-                    })),
-                    token: Token::EQ,
-                    right_expr: Box::new(Expr::Bool(BoolLiteral {
-                        token: Token::False,
-                        value: false,
-                    })),
-                }),
-            })
+            new_expr_stmt(new_infix_expr(new_bool(true), Token::EQ, new_bool(false))),
         );
     }
 
