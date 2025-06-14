@@ -241,27 +241,29 @@ impl Parser {
         enter!("[Prefix]");
         self.log_position();
 
-        assert!(
-            self.is_curr(Token::Bang) || self.is_curr(Token::Minus),
-            "Expect self.curr_token to be Token::Bang or Token::Minus, found: {:?}",
-            self.curr
-        );
-        let token = self.curr.take_and_log().unwrap();
-
-        self.advance();
-        self.parse_expr(Prefix)
-            .map(|right_expr| Expr::Prefix(PrefixExpr::new(token, right_expr)))
+        if self.curr.is_token(Token::Bang) || self.curr.is_token(Token::Minus) {
+            let prefix_token = self.curr.take_and_log().unwrap();
+            self.advance();
+            self.parse_expr(Prefix)
+                .map(|right_expr| Expr::Prefix(PrefixExpr::new(prefix_token, right_expr)))
+        } else {
+            Err(InvalidExpr(format!(
+                "Expected prefix operator, found: {:?}",
+                self.curr.as_log_string()
+            )))
+        }
     }
 
     fn parse_group(&mut self) -> Result<Expr, ParseError> {
         enter!("[Group]");
         self.log_position();
 
-        assert!(
-            self.is_curr(Token::LeftParen),
-            "Expect self.curr_token to be Token::LeftParen, found: {:?}",
-            self.curr
-        );
+        if !self.is_curr(Token::LeftParen) {
+            return Err(InvalidExpr(format!(
+                "Expected left parenthesis, found: {:?}",
+                self.curr.as_log_string()
+            )));
+        }
 
         self.advance();
         let expr = self.parse_expr(Precedence::Lowest);
@@ -282,11 +284,12 @@ impl Parser {
         enter!("[IfExpr]");
         self.log_position();
 
-        assert!(
-            self.is_curr(Token::If),
-            "Expect self.curr_token to be Token::If, found: {:?}",
-            self.curr
-        );
+        if !self.is_curr(Token::If) {
+            return Err(InvalidExpr(format!(
+                "Expected 'if' token, found: {:?}",
+                self.curr.as_log_string()
+            )));
+        }
 
         self.advance();
         let condition = self.parse_expr(Precedence::Lowest);
