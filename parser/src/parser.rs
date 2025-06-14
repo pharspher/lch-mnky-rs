@@ -10,6 +10,7 @@ use lexer::token::Token;
 use log::warn;
 #[cfg(feature = "serial-test")]
 use serial_test::serial;
+use std::mem::discriminant;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
@@ -45,7 +46,8 @@ impl Parser {
         while self.curr.is_some() {
             let curr = self
                 .curr
-                .or_error(ParseError::InvalidToken("None".to_string()))?;
+                .as_ref()
+                .ok_or(ParseError::InvalidToken("None".to_string()))?;
 
             info!("Process [{}]", curr);
 
@@ -69,9 +71,7 @@ impl Parser {
         self.log_position();
 
         match self.curr {
-            None => Err(InvalidStmt(
-                "No current token available to parse statement".to_string(),
-            )),
+            None => Err(InvalidStmt("No current token available".to_string())),
             Some(Token::Let) => self.parse_let_stmt(),
             Some(Token::Return) => self.parse_return_stmt(),
             _ => self.parse_expr_stmt(),
@@ -82,22 +82,19 @@ impl Parser {
         enter!("[LetStmt]");
         self.log_position();
 
-        assert!(
-            self.is_curr(Token::Let),
-            "Expect self.curr_token to be Token::Let, found: {:?}",
-            self.curr
-        );
+        self.expect_curr(Token::Let, InvalidStmt("Expect 'let' token".to_string()))?;
 
         self.advance();
         let identifier = match self.curr.as_ref() {
             Some(Token::Identifier(__)) => IdentExpr::new(self.curr.take_and_log().unwrap()),
-            _ => return Err(InvalidStmt("Expected identifier after 'let'".to_string())),
+            _ => return Err(InvalidStmt("Expect ident after 'let'".to_string())),
         };
 
         self.advance();
-        if !self.is_curr(Token::Assign) {
-            return Err(InvalidStmt("Expected '=' after identifier".to_string()));
-        }
+        self.expect_curr(
+            Token::Assign,
+            InvalidStmt("Expect '=' after ident".to_string()),
+        )?;
 
         self.advance();
         let expr = self.parse_expr(Precedence::Lowest)?;
@@ -106,20 +103,14 @@ impl Parser {
             self.advance();
         }
 
-        let parsed_stmt = Stmt::Let(LetStmt::new(Token::Let, identifier, expr));
-        info!("Parsed let statement: {}", parsed_stmt);
-        Ok(parsed_stmt)
+        Ok(Stmt::Let(LetStmt::new(Token::Let, identifier, expr)))
     }
 
     fn parse_return_stmt(&mut self) -> Result<Stmt, ParseError> {
         enter!("[ReturnStmt]");
         self.log_position();
 
-        assert!(
-            self.is_curr(Token::Return),
-            "Expect self.curr_token to be Token::Return, found: {:?}",
-            self.curr
-        );
+        self.expect_curr(Token::Return, InvalidStmt("Expect 'return'".to_string()))?;
 
         self.advance();
         let expr = self.parse_expr(Precedence::Lowest)?;
@@ -161,7 +152,7 @@ impl Parser {
             Token::If => self.parse_if_expr(),
             _ => {
                 return Err(InvalidExpr(format!(
-                    "No expression parser implemented for token: {:?}",
+                    "No expression parser implemented for: {:?}",
                     token
                 )));
             }
@@ -184,10 +175,7 @@ impl Parser {
                 | Some(Token::EQ)
                 | Some(Token::NotEQ)
                 | Some(Token::LT)
-                | Some(Token::GT) => {
-                    let curr_token = self.curr.take().unwrap();
-                    left_prefix = self.parse_infix(curr_token, left_prefix)?
-                }
+                | Some(Token::GT) => left_prefix = self.parse_infix(left_prefix)?,
                 _ => break,
             }
         }
@@ -269,12 +257,10 @@ impl Parser {
         let expr = self.parse_expr(Precedence::Lowest);
 
         info!("Parsed group expression: {}", expr.as_ref().unwrap());
-        if !self.is_next(Token::RightParen) {
-            return Err(InvalidExpr(format!(
-                "Expected right parenthesis, found: {:?}",
-                self.next
-            )));
-        }
+        self.expect_next(
+            Token::RightParen,
+            InvalidExpr("Expected right parenthesis".to_string()),
+        )?;
 
         self.advance();
         expr
@@ -295,24 +281,20 @@ impl Parser {
         let condition = self.parse_expr(Precedence::Lowest);
         info!("Parsed condition: {}", condition.as_ref().unwrap());
 
-        if !self.is_next(Token::LeftBrace) {
-            return Err(InvalidExpr(format!(
-                "Expected {{ after if condition, found: {:?}",
-                self.next
-            )));
-        }
+        self.expect_next(
+            Token::LeftBrace,
+            InvalidExpr("Expected '{' after if".to_string()),
+        )?;
 
         self.advance();
         let consequence = self.parse_block_stmt();
 
         let alternative = if self.is_next(Token::Else) {
             self.advance();
-            if !self.is_next(Token::LeftBrace) {
-                return Err(InvalidExpr(format!(
-                    "Expected {{ after else, found: {:?}",
-                    self.next
-                )));
-            }
+            self.expect_next(
+                Token::LeftBrace,
+                InvalidExpr("Expected '{' after else".to_string()),
+            )?;
             self.parse_block_stmt().map(|block| Some(block))
         } else {
             Ok(None)
@@ -344,15 +326,23 @@ impl Parser {
         Ok(BlockStmt::new(block_stmts))
     }
 
-    fn parse_infix(&mut self, token: Token, left: Expr) -> Result<Expr, ParseError> {
+    fn parse_infix(&mut self, left: Expr) -> Result<Expr, ParseError> {
         enter!("[Infix]");
         self.log_position();
 
-        info!("Token: {token}, left_expr: {:?}", left.to_string());
+        let infix_token = self.curr.take().ok_or(InvalidExpr(
+            "Expected infix token, but found None".to_string(),
+        ))?;
+
+        info!(
+            "Token: {}, left_expr: {:?}",
+            self.curr.as_log_string(),
+            left.to_string()
+        );
 
         self.advance();
-        self.parse_expr(Self::get_precedence(&token))
-            .map(|right_expr| Expr::Infix(InfixExpr::new(token, left, right_expr)))
+        self.parse_expr(Self::get_precedence(&infix_token))
+            .map(|right_expr| Expr::Infix(InfixExpr::new(infix_token, left, right_expr)))
     }
 
     fn get_precedence(token: &Token) -> Precedence {
@@ -378,24 +368,40 @@ impl Parser {
         );
     }
 
-    fn is_curr(&self, token: Token) -> bool {
-        self.curr.is_token(token)
+    fn is_curr(&self, expected: Token) -> bool {
+        self.curr.is_token(expected)
     }
 
-    fn is_next(&self, token: Token) -> bool {
-        self.next.is_token(token)
+    fn is_next(&self, expected: Token) -> bool {
+        self.next.is_token(expected)
+    }
+
+    fn expect_curr(&self, expected: Token, error: ParseError) -> Result<(), ParseError> {
+        if self.is_curr(expected) {
+            Ok(())
+        } else {
+            Err(error)
+        }
+    }
+
+    fn expect_next(&self, expected: Token, error: ParseError) -> Result<(), ParseError> {
+        if self.is_next(expected) {
+            Ok(())
+        } else {
+            Err(error)
+        }
     }
 }
 
-pub trait OptionToken<'a> {
+pub trait OptionToken {
     fn is_token(&self, token: Token) -> bool;
     fn or_error(&self, error: ParseError) -> Result<&Token, ParseError>;
     fn as_log_string(&self) -> String;
 }
-impl<'a> OptionToken<'a> for Option<Token> {
+impl OptionToken for Option<Token> {
     fn is_token(&self, token: Token) -> bool {
         match self {
-            Some(tok) => *tok == token,
+            Some(tok) => discriminant(tok) == discriminant(&token),
             None => false,
         }
     }
