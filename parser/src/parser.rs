@@ -15,10 +15,6 @@ use serial_test::serial;
 pub enum ParseError {
     InvalidToken(String),
     InvalidStmt(String),
-    UnexpectedEOF,
-    MissingIdentifier,
-    MissingExpression,
-    MissingSemicolon,
     InvalidExpr(String),
 }
 
@@ -72,16 +68,13 @@ impl Parser {
         enter!("[Stmt]");
         self.log_position();
 
-        if let Some(ref token) = self.curr {
-            match token {
-                Token::Let => self.parse_let_stmt(),
-                Token::Return => self.parse_return_stmt(),
-                _ => self.parse_expr_stmt(),
-            }
-        } else {
-            Err(InvalidStmt(
+        match self.curr {
+            None => Err(InvalidStmt(
                 "No current token available to parse statement".to_string(),
-            ))
+            )),
+            Some(Token::Let) => self.parse_let_stmt(),
+            Some(Token::Return) => self.parse_return_stmt(),
+            _ => self.parse_expr_stmt(),
         }
     }
 
@@ -96,10 +89,9 @@ impl Parser {
         );
 
         self.advance();
-        let identifier = if let Some(Token::Identifier(ref __)) = self.curr {
-            IdentExpr::new(self.curr.take_and_log().unwrap())
-        } else {
-            return Err(InvalidStmt("Expect ident after let".to_string()));
+        let identifier = match self.curr.as_ref() {
+            Some(Token::Identifier(__)) => IdentExpr::new(self.curr.take_and_log().unwrap()),
+            _ => return Err(InvalidStmt("Expected identifier after 'let'".to_string())),
         };
 
         self.advance();
