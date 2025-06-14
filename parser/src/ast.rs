@@ -25,7 +25,7 @@ pub enum Stmt {
 impl fmt::Display for Stmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Stmt::Let(let_stmt) => write!(f, "{};", let_stmt),
+            Stmt::Let(let_stmt) => write!(f, "{}", let_stmt),
             Stmt::Return(return_stmt) => write!(f, "{}", return_stmt),
             Stmt::Expression(expr_stmt) => write!(f, "{}", expr_stmt),
         }
