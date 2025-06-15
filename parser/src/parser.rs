@@ -206,7 +206,7 @@ impl Parser {
         } else {
             Err(InvalidExpr(format!(
                 "Expected integer literal, found: {:?}",
-                self.curr.as_log_string()
+                self.curr.as_string()
             )))
         }
     }
@@ -220,7 +220,7 @@ impl Parser {
             Some(Token::False) => Ok(Expr::Bool(BoolLiteral::new(Token::False, false))),
             _ => Err(InvalidExpr(format!(
                 "Expected boolean literal, found: {:?}",
-                self.curr.as_log_string()
+                self.curr.as_string()
             ))),
         }
     }
@@ -229,7 +229,7 @@ impl Parser {
         enter!("[Prefix]");
         self.log_position();
 
-        if self.curr.is_token(Token::Bang) || self.curr.is_token(Token::Minus) {
+        if self.curr.is_token_kind(Token::Bang) || self.curr.is_token_kind(Token::Minus) {
             let prefix_token = self.curr.take_and_log().unwrap();
             self.advance();
             self.parse_expr(Prefix)
@@ -237,7 +237,7 @@ impl Parser {
         } else {
             Err(InvalidExpr(format!(
                 "Expected prefix operator, found: {:?}",
-                self.curr.as_log_string()
+                self.curr.as_string()
             )))
         }
     }
@@ -249,7 +249,7 @@ impl Parser {
         if !self.is_curr(Token::LeftParen) {
             return Err(InvalidExpr(format!(
                 "Expected left parenthesis, found: {:?}",
-                self.curr.as_log_string()
+                self.curr.as_string()
             )));
         }
 
@@ -273,7 +273,7 @@ impl Parser {
         if !self.is_curr(Token::If) {
             return Err(InvalidExpr(format!(
                 "Expected 'if' token, found: {:?}",
-                self.curr.as_log_string()
+                self.curr.as_string()
             )));
         }
 
@@ -336,7 +336,7 @@ impl Parser {
 
         info!(
             "Token: {}, left_expr: {:?}",
-            self.curr.as_log_string(),
+            self.curr.as_string(),
             left.to_string()
         );
 
@@ -363,17 +363,17 @@ impl Parser {
     fn log_position(&self) {
         info!(
             "curr: [{}], next: [{}]",
-            self.curr.as_log_string(),
-            self.next.as_log_string()
+            self.curr.as_string(),
+            self.next.as_string()
         );
     }
 
     fn is_curr(&self, expected: Token) -> bool {
-        self.curr.is_token(expected)
+        self.curr.is_token_kind(expected)
     }
 
     fn is_next(&self, expected: Token) -> bool {
-        self.next.is_token(expected)
+        self.next.is_token_kind(expected)
     }
 
     fn expect_curr(&self, expected: Token, error: ParseError) -> Result<(), ParseError> {
@@ -394,23 +394,18 @@ impl Parser {
 }
 
 pub trait OptionToken {
-    fn is_token(&self, token: Token) -> bool;
-    fn or_error(&self, error: ParseError) -> Result<&Token, ParseError>;
-    fn as_log_string(&self) -> String;
+    fn is_token_kind(&self, token: Token) -> bool;
+    fn as_string(&self) -> String;
 }
 impl OptionToken for Option<Token> {
-    fn is_token(&self, token: Token) -> bool {
+    fn is_token_kind(&self, token: Token) -> bool {
         match self {
             Some(tok) => discriminant(tok) == discriminant(&token),
             None => false,
         }
     }
 
-    fn or_error(&self, error: ParseError) -> Result<&Token, ParseError> {
-        self.as_ref().ok_or(error)
-    }
-
-    fn as_log_string(&self) -> String {
+    fn as_string(&self) -> String {
         match self {
             Some(tok) => format!("{:?}", tok),
             None => "".to_string(),
