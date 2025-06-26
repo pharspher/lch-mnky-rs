@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::sync::Once;
+use std::sync::LazyLock;
 use tracing::Level;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::FmtSubscriber;
@@ -9,16 +9,16 @@ pub mod parser;
 #[cfg(test)]
 mod test_utils;
 
-static INIT: Once = Once::new();
+static LAZY_LOGGER: LazyLock<()> = LazyLock::new(|| {
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::TRACE)
+        .with_span_events(FmtSpan::ENTER | FmtSpan::EXIT)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Failed to set global default subscriber");
+});
 pub fn init_logger() {
-    INIT.call_once(|| {
-        let subscriber = FmtSubscriber::builder()
-            .with_max_level(Level::TRACE)
-            .with_span_events(FmtSpan::ENTER | FmtSpan::EXIT)
-            .finish();
-        tracing::subscriber::set_global_default(subscriber)
-            .expect("Failed to set global default subscriber");
-    });
+    let _ = &*LAZY_LOGGER;
 }
 
 thread_local! {
