@@ -1,6 +1,6 @@
 use crate::ast::{
-    BoolLiteral, Expr, ExprStmt, IdentExpr, InfixExpr, IntLiteral, LetStmt, PrefixExpr, ReturnStmt,
-    Stmt,
+    BlockStmt, BoolLiteral, Expr, ExprStmt, IdentExpr, IfExpr, InfixExpr, IntLiteral, LetStmt,
+    PrefixExpr, ReturnStmt, Stmt,
 };
 use lexer::token::Token;
 
@@ -56,4 +56,18 @@ pub fn new_expr_stmt(expr: Expr) -> Stmt {
 #[cfg(test)]
 pub fn new_ret_stmt(expr: Expr) -> Stmt {
     Stmt::Return(ReturnStmt::new(Token::Return, expr))
+}
+
+#[cfg(test)]
+pub fn new_block_stmt(stmts: Vec<Stmt>) -> BlockStmt {
+    BlockStmt::new(stmts)
+}
+
+#[cfg(test)]
+pub fn new_if_expr(
+    condition: Expr,
+    consequence: BlockStmt,
+    alternative: Option<BlockStmt>,
+) -> Expr {
+    Expr::If(IfExpr::new(condition, consequence, alternative))
 }
