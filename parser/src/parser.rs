@@ -438,8 +438,8 @@ mod test {
     use crate::init_logger;
     use crate::parser::ParseError;
     use crate::parser::Parser;
-    use crate::test_utils::new_bool;
     use crate::test_utils::new_expr_stmt;
+    use crate::test_utils::{new_block_stmt, new_bool, new_if_expr};
     use crate::test_utils::{
         new_ident, new_ident_expr, new_infix_expr, new_int, new_let_stmt, new_ret_stmt,
     };
@@ -666,28 +666,42 @@ mod test {
         assert_eq!(expect, program.stmts.get(1).unwrap().to_string());
     }
 
-    // //#[test]
-    // fn test_if_expr() {
-    //     init_logger();
-    //
-    //     let input = r"
-    //         if (x < y) {
-    //             let x = 3;
-    //             x;
-    //         } else {
-    //             y;
-    //         }
-    //         ";
-    //
-    //     let program = parse_program(input);
-    //     assert_eq!(program.stmts.len(), 1);
-    //
-    //     let stmt = program.stmts.first().unwrap();
-    //     assert_eq!(
-    //         stmt.to_string(),
-    //         "if ((x) < (y)) { let x = 3; x; } else { y; }"
-    //     );
-    // }
+    #[test]
+    fn test_if_expr() {
+        init_logger();
+
+        let input = r"
+            if (x < y) {
+                let x = 3;
+                x;
+            } else {
+                y;
+            }
+            ";
+
+        let program = parse_program(input);
+        assert!(
+            program.is_ok(),
+            "Failed to parse program: {:?}",
+            program.err()
+        );
+
+        let program = program.unwrap();
+        let stmt = program.stmts.first().unwrap();
+        assert_eq!(
+            stmt,
+            &new_expr_stmt(new_if_expr(
+                new_infix_expr(new_ident_expr("x"), Token::LT, new_ident_expr("y")),
+                new_block_stmt(vec![
+                    Stmt::Let(new_let_stmt(new_ident("x"), new_int(3))),
+                    new_expr_stmt(new_ident_expr("x"))
+                ]),
+                Some(new_block_stmt(vec![
+                    new_expr_stmt(new_ident_expr("y"))
+                ]))
+            ))
+        );
+    }
 
     fn parse_program(input: &str) -> Result<Program, ParseError> {
         let lexer = Lexer::new(input.to_string());

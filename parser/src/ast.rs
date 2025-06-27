@@ -210,7 +210,7 @@ impl BlockStmt {
 impl fmt::Display for BlockStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let stmts_str: Vec<String> = self.stmts.iter().map(|s| s.to_string()).collect();
-        write!(f, "{{{}}}", stmts_str.join("\n"))
+        write!(f, "{{{}}}", stmts_str.join(""))
     }
 }
 
