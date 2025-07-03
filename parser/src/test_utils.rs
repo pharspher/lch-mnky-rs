@@ -30,12 +30,8 @@ pub fn new_int(value: i64) -> Expr {
 }
 
 #[cfg(test)]
-pub fn new_bang_prefix_expr(right: Expr) -> Expr {
-    Expr::Prefix(PrefixExpr::new(Token::Bang, right))
-}
-#[cfg(test)]
-pub fn new_minus_prefix_expr(right: Expr) -> Expr {
-    Expr::Prefix(PrefixExpr::new(Token::Minus, right))
+pub fn new_prefix_expr(operator: Token, right: Expr) -> Expr {
+    Expr::Prefix(PrefixExpr::new(operator, right))
 }
 
 #[cfg(test)]

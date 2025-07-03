@@ -440,6 +440,10 @@ mod test {
     use crate::parser::Parser;
     use crate::test_utils::new_bool;
     use crate::test_utils::new_expr_stmt;
+<<<<<<< Updated upstream
+=======
+    use crate::test_utils::{new_block_stmt, new_bool, new_if_expr, new_prefix_expr};
+>>>>>>> Stashed changes
     use crate::test_utils::{
         new_ident, new_ident_expr, new_infix_expr, new_int, new_let_stmt, new_ret_stmt,
     };
@@ -610,8 +614,14 @@ mod test {
         let program = program.unwrap();
         assert_eq!(program.stmts.len(), 2);
 
-        assert_eq!("!(15);", program.stmts.first().unwrap().to_string());
-        assert_eq!("-(x);", program.stmts.get(1).unwrap().to_string());
+        assert_eq!(
+            *program.stmts.first().unwrap(),
+            new_expr_stmt(new_prefix_expr(Token::Bang, new_int(15)))
+        );
+        assert_eq!(
+            *program.stmts.get(1).unwrap(),
+            new_expr_stmt(new_prefix_expr(Token::Minus, new_ident_expr("x")))
+        );
     }
 
     #[test]
@@ -633,11 +643,35 @@ mod test {
         let program = program.unwrap();
         assert_eq!(program.stmts.len(), 2);
 
-        let expect = "(((a) + ((b) * (c))) + ((d) / (e))) - (f);";
-        assert_eq!(expect, program.stmts.first().unwrap().to_string());
+        assert_eq!(
+            *program.stmts.first().unwrap(),
+            new_expr_stmt(new_infix_expr(
+                new_infix_expr(
+                    new_infix_expr(new_ident_expr("a"), Token::Plus, new_infix_expr(new_ident_expr("b"), Token::Asterisk, new_ident_expr("c"))),
+                    Token::Plus,
+                    new_infix_expr(new_ident_expr("d"), Token::Slash, new_ident_expr("e"))
+                ),
+                Token::Minus,
+                new_ident_expr("f")
+            ))
+        );
 
-        let expect = "((3) + ((4) * (5))) == (((3) * (1)) + ((4) * (5)));";
-        assert_eq!(expect, program.stmts.get(1).unwrap().to_string());
+        assert_eq!(
+            *program.stmts.get(1).unwrap(),
+            new_expr_stmt(new_infix_expr(
+                new_infix_expr(
+                    new_int(3),
+                    Token::Plus,
+                    new_infix_expr(new_int(4), Token::Asterisk, new_int(5))
+                ),
+                Token::EQ,
+                new_infix_expr(
+                    new_infix_expr(new_int(3), Token::Asterisk, new_int(1)),
+                    Token::Plus,
+                    new_infix_expr(new_int(4), Token::Asterisk, new_int(5))
+                )
+            ))
+        );
     }
 
     #[test]
@@ -659,11 +693,34 @@ mod test {
         let program = program.unwrap();
         assert_eq!(program.stmts.len(), 2);
 
-        let expect = "((a) + (((b) * ((c) + (d))) / (e))) - (f);";
-        assert_eq!(expect, program.stmts.first().unwrap().to_string());
+        assert_eq!(
+            *program.stmts.first().unwrap(),
+            new_expr_stmt(new_infix_expr(
+                new_infix_expr(
+                    new_ident_expr("a"),
+                    Token::Plus,
+                    new_infix_expr(
+                        new_infix_expr(
+                            new_ident_expr("b"),
+                            Token::Asterisk,
+                            new_infix_expr(new_ident_expr("c"), Token::Plus, new_ident_expr("d"))
+                        ),
+                        Token::Slash,
+                        new_ident_expr("e")
+                    )
+                ),
+                Token::Minus,
+                new_ident_expr("f")
+            ))
+        );
 
-        let expect = "-((5) + (5));";
-        assert_eq!(expect, program.stmts.get(1).unwrap().to_string());
+        assert_eq!(
+            *program.stmts.get(1).unwrap(),
+            new_expr_stmt(new_prefix_expr(
+                Token::Minus,
+                new_infix_expr(new_int(5), Token::Plus, new_int(5))
+            ))
+        );
     }
 
     // //#[test]
