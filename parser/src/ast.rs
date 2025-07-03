@@ -283,10 +283,7 @@ mod display_tests {
 
     use crate::ast::{BlockStmt, Expr, ExprStmt, IfExpr, Stmt};
     use crate::init_logger;
-    use crate::test_utils::{
-        new_bang_prefix_expr, new_bool, new_ident_expr, new_infix_expr, new_int,
-        new_minus_prefix_expr,
-    };
+    use crate::test_utils::{new_bool, new_ident_expr, new_infix_expr, new_int, new_prefix_expr};
 
     #[test]
     fn test_expr_display() {
@@ -301,10 +298,10 @@ mod display_tests {
         assert_eq!(ident_expr.to_string(), "x");
 
         // TODO: PrefixExpr can only accept Token::Bang or Token::Minus, try make it explicit
-        let bang_prefix_expr = new_bang_prefix_expr(int_expr.clone());
+        let bang_prefix_expr = new_prefix_expr(Token::Bang, int_expr.clone());
         assert_eq!(bang_prefix_expr.to_string(), "!(5)");
 
-        let minus_prefix_expr = new_minus_prefix_expr(ident_expr.clone());
+        let minus_prefix_expr = new_prefix_expr(Token::Minus, ident_expr.clone());
         assert_eq!(minus_prefix_expr.to_string(), "-(x)");
 
         // TODO: InfixExpr can only accept Token::Plus, Token::Minus, etc., try make it explicit
